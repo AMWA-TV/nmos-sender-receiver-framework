@@ -1,10 +1,10 @@
-amwa_id: INFO-TEMPLATE
-url: https://specs.amwa.tv/info-template
-name: Template for NMOS Implementation Guides
+amwa_id: SW-SENDER-RECEIVER-FRAMEWORK
+url: https://specs.amwa.tv/nmos-sender-receiver-framework
+name: NMOS Sender Receiver Framework
 status: Continuing
-repo_name: info-template
-alt_repo_name: nmos-implementation-guide-template
-repo_url: https://github.com/AMWA-TV/info-template
+repo_name: nmos-sender-receiver-framework
+alt_repo_name: nmos-sender-receiver-framework
+repo_url: https://github.com/AMWA-TV/nmos-sender-receiver-framework
 releases:
 default_branch: main
 show_in_index: false
