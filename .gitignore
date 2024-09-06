@@ -2,3 +2,11 @@
 *.swp
 *~
 .DS_Store
+
+/build
+/dist
+/install
+/CMakeUserPresets.json
+/.vscode
+/volumes
+/.user

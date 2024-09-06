@@ -1,0 +1,108 @@
+{
+    "node": {
+        "id": "0aad3458-1081-4fba-af02-a8ebd9feeae3",
+        "configuration": {
+            "label": "BISECT OSSRF Node",
+            "description": "BISECT OSSRF node",
+            "host_addresses": [
+                "192.168.1.79"
+            ],
+            "interfaces": [
+                {
+                    "chassis_id": "c8-94-02-f7-3e-eb",
+                    "name": "wlp1s0",
+                    "port_id": "00-e0-4c-68-01-8d"
+                }
+            ],
+            "clocks": [
+                {
+                    "name": "clk0",
+                    "ref_type": "ptp",
+                    "traceable": false,
+                    "version": "IEEE1588-2008",
+                    "gmid": "00-20-fc-ff-fe-35-9c-25",
+                    "locked": true
+                }
+            ],
+            "registry_address": "192.168.1.79",
+            "registry_version": "v1.3",
+            "registration_port": 8010,
+            "system_address": "192.168.1.79",
+            "system_version": "v1.0",
+            "system_port": 8010
+        }
+    },
+    "device": {
+        "id": "b9b85f97-58db-41fe-934f-c2afbf7bd46f",
+        "label": "OSSRF Device",
+        "description": "OSSRF Device"
+    },
+    "receivers": [
+        {
+            "id": "db9f46cf-2414-4e25-b6c6-2078159857f9",
+            "label": "BISECT OSSRF receiver video",
+            "description": "BISECT OSSRF receiver video",
+            "network": {
+                "primary": {
+                    "interface_address": "192.168.1.79",
+                    "interface_name": "wlp1s0"
+                }
+            },
+            "capabilities": [
+                "video/raw"
+            ]
+        }
+    ],
+    "senders": [
+        {
+            "id": "e543a2c1-d6a2-47f5-8d14-296bb6714ef2",
+            "label": "BISECT OSSRF sender video 1",
+            "description": "BISECT OSSRF sender video 1",
+            "network": {
+                "primary": {
+                    "source_address": "192.168.1.79",
+                    "interface_name": "wlp1s0",
+                    "destination_address": "239.10.10.10",
+                    "destination_port": 5004
+                }
+            },
+            "payload_type": 97,
+            "media_type": "video/raw",
+            "media": {
+                "width": 640,
+                "height": 480,
+                "frame_rate": {
+                    "num": 50,
+                    "den": 1
+                },
+                "sampling": "RGB_444",
+                "structure": "progressive"
+            }
+        },
+        {
+            "id": "f2aa5651-c673-448c-bd02-5e8475898c7f",
+            "label": "BISECT OSSRF sender video 2",
+            "description": "BISECT OSSRF sender video 2",
+            "network": {
+                "primary": {
+                    "source_address": "192.168.1.79",
+                    "interface_name": "wlp1s0",
+                    "destination_address": "239.10.10.11",
+                    "destination_port": 5005
+                }
+            },
+            "payload_type": 97,
+            "media_type": "video/raw",
+            "media": {
+                "width": 640,
+                "height": 480,
+                "frame_rate": {
+                    "num": 50,
+                    "den": 1
+                },
+                "sampling": "RGB_444",
+                "structure": "progressive"
+            }
+        }
+    ]
+}

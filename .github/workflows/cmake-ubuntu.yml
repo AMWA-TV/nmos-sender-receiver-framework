@@ -1,0 +1,28 @@
+# This starter workflow is for a CMake project running on a single platform. There is a different starter workflow if you need cross-platform coverage.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
+name: Ubuntu pipeline
+
+# on:
+#   pull_request:
+#     branches: 
+#               - main
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Clang Check
+      run: ./scripts/cipipeline/clang-test.sh
+
+    - name: Setup
+      run: ./scripts/setup.sh
+
+    - name: Build & Test
+      run: ./scripts/build.sh
+

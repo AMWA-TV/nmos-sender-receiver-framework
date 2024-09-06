@@ -1,0 +1,18 @@
+version: "3"
+services:
+  ossrf-dev:
+    build:
+      dockerfile: ./dev/Dockerfile
+    image: ossrf-dev
+    
+    network_mode: host
+    environment:
+      - PULSE_SERVER=unix:${XDG_RUNTIME_DIR}/pulse/native
+    volumes:
+      - ${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native
+      - ../volumes/home:/home/bisect/
+      - /.conan2:/home/bisect/.conan2:rw  
+
+  nmos-registry:
+    image: docker.io/rhastie/nmos-cpp:latest
+    network_mode: host
