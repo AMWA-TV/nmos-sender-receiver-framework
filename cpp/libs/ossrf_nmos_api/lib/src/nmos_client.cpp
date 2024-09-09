@@ -1,3 +1,17 @@
+// Copyright (C) 2024 Advanced Media Workflow Association
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "ossrf/nmos/api/nmos_client.h"
 #include "ossrf/nmos/api/nmos_impl.h"
 #include "context/context.h"
@@ -34,7 +48,7 @@ expected<nmos_client_uptr> nmos_client_t::create(const std::string& node_id,
     return nmos_client_uptr(new nmos_client_t{std::move(i)});
 }
 
-nmos_client_t::nmos_client_t(std::unique_ptr<impl>&& i) noexcept : impl_(std::move(i)){};
+nmos_client_t::nmos_client_t(std::unique_ptr<impl>&& i) noexcept : impl_(std::move(i)) {};
 
 nmos_client_t::~nmos_client_t()
 {
