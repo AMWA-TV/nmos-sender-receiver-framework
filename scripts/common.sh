@@ -22,7 +22,7 @@ CONAN_MIN_VERSION="2.0.0"
 function setup() {
     pushd ${PROJECT_DIR}
     for configuration in $CONFIGURATIONS; do
-        conan install . --output-folder ${PROJECT_DIR} --build=missing --settings=build_type="$configuration" --settings=compiler.cppstd=17
+        conan install . --output-folder ${PROJECT_DIR} --build=missing --settings=build_type="$configuration" --settings=compiler.cppstd=17 --lockfile=conan.lock
     done
     popd
 }
