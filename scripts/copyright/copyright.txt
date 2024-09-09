@@ -12,7 +12,3 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
-
-#include "bisect/sdp/builder.h"
-#include "bisect/sdp/media_types.h"

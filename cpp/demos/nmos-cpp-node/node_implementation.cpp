@@ -1,3 +1,17 @@
+// Copyright (C) 2024 Advanced Media Workflow Association
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "node_implementation.h"
 
 #include <boost/range/adaptor/filtered.hpp>
@@ -977,7 +991,7 @@ void node_implementation_run(nmos::node_model& model, slog::base_gate& gate)
         [&model, seed_id, how_many, ws_sender_ports, events_engine, &gate, token] {
             const auto event_interval = std::uniform_real_distribution<>(0.5, 5.0)(*events_engine);
             return pplx::complete_after(
-                                    std::chrono::milliseconds(std::chrono::milliseconds::rep(1000 * event_interval)), token)
+                       std::chrono::milliseconds(std::chrono::milliseconds::rep(1000 * event_interval)), token)
                 .then([&model, seed_id, how_many, ws_sender_ports, events_engine, &gate] {
                     auto lock = model.write_lock();
 
@@ -996,12 +1010,12 @@ void node_implementation_run(nmos::node_model& model, slog::base_gate& gate)
                                 if(impl::ports::temperature == port)
                                 {
                                     nmos::fields::endpoint_state(resource.data) = nmos::make_events_number_state(
-                                                     {source_id, flow_id}, temp, impl::temperature_Celsius);
+                                        {source_id, flow_id}, temp, impl::temperature_Celsius);
                                 }
                                 else if(impl::ports::burn == port)
                                 {
                                     nmos::fields::endpoint_state(resource.data) = nmos::make_events_boolean_state(
-                                                     {source_id, flow_id}, temp.scaled_value() > 20.0);
+                                        {source_id, flow_id}, temp.scaled_value() > 20.0);
                                 }
                                 else if(impl::ports::nonsense == port)
                                 {
