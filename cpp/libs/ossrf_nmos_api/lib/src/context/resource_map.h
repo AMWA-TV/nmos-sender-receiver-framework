@@ -24,7 +24,7 @@ namespace ossrf
 {
     class resource_map_t
     {
-        std::mutex mutex_;
+        mutable std::mutex mutex_;
         std::unordered_map<std::string, std::vector<nmos_resource_ptr>> map_;
         using lock_t = std::unique_lock<std::mutex>;
 
@@ -34,6 +34,9 @@ namespace ossrf
         void erase(std::string);
 
         bisect::expected<nmos_resource_ptr> find_resource(const std::string& resource_id);
+        std::vector<std::string> get_sender_ids() const;
+        std::vector<std::string> get_receiver_ids() const;
+
     };
 
     using resource_map_ptr  = std::shared_ptr<resource_map_t>;

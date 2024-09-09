@@ -34,6 +34,8 @@ namespace ossrf
 
         const std::string& get_device_id() const override;
 
+        nmos::type get_resource_type() const override;
+
       private:
         const bisect::nmoscpp::nmos_sender_t config_;
         bisect::nmoscpp::sender_activation_callback_t activation_callback_;

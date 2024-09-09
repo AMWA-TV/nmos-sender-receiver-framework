@@ -39,6 +39,10 @@ namespace ossrf
 
         [[nodiscard]] virtual bisect::maybe_ok modify_device(const bisect::nmoscpp::nmos_device_t& device) = 0;
 
+        [[nodiscard]] virtual bisect::maybe_ok modify_device_sub_resources(const std::string& device_id,
+                                                                         const std::vector<std::string>& receivers,
+                                                                         const std::vector<std::string>& senders) = 0;
+
         [[nodiscard]] virtual bisect::maybe_ok modify_receiver(const std::string& device_id,
                                                                const bisect::nmoscpp::nmos_receiver_t& config) = 0;
 

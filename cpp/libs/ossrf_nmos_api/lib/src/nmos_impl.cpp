@@ -130,6 +130,15 @@ maybe_ok nmos_impl::modify_device(const nmos_device_t& config) noexcept
                                                [&](nmos::resource& resource) { resource = device_resource; });
 }
 
+maybe_ok nmos_impl::modify_device_sub_resources(const std::string& device_id, const std::vector<std::string>& receivers,
+                                                const std::vector<std::string>& senders) noexcept
+{
+    return impl_->controller_->modify_resource(device_id, [&](nmos::resource& resource) {
+        resource.data[nmos::fields::receivers] = web::json::value_from_elements(receivers);
+        resource.data[nmos::fields::senders]   = web::json::value_from_elements(senders);
+    });
+}
+
 maybe_ok nmos_impl::modify_receiver(const std::string& device_id, const nmos_receiver_t& config) noexcept
 {
     auto receiver = impl_->controller_->make_receiver(utility::s2us(device_id), config);
