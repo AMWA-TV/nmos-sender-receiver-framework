@@ -104,3 +104,39 @@ std::vector<std::string> resource_map_t::get_receiver_ids() const
 
     return ids;
 }
+
+std::vector<std::string> resource_map_t::get_sender_ids() const
+{
+    std::vector<std::string> ids;
+    lock_t lock(mutex_);
+    for(const auto& [id, resources] : map_)
+    {
+        for(const auto& resource : resources)
+        {
+            if(resource->get_resource_type() == nmos::types::sender)
+            {
+                ids.push_back(id);
+            }
+        }
+    }
+
+    return ids;
+}
+
+std::vector<std::string> resource_map_t::get_receiver_ids() const
+{
+    std::vector<std::string> ids;
+    lock_t lock(mutex_);
+    for(const auto& [id, resources] : map_)
+    {
+        for(const auto& resource : resources)
+        {
+            if(resource->get_resource_type() == nmos::types::receiver)
+            {
+                ids.push_back(id);
+            }
+        }
+    }
+
+    return ids;
+}
