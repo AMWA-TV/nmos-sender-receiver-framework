@@ -118,3 +118,8 @@ maybe_ok nmos_resource_receiver_t::handle_activation(bool master_enable, json& t
 
     return {};
 }
+
+nmos::type nmos_resource_receiver_t::get_resource_type() const
+{
+    return nmos::types::receiver;
+}

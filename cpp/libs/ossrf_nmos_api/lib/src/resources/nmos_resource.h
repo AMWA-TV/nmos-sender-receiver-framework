@@ -19,6 +19,7 @@
 #include <nmos/id.h>
 #include <string>
 #include <memory>
+#include <nmos/type.h>
 
 namespace ossrf
 {
@@ -35,6 +36,8 @@ namespace ossrf
         [[nodiscard]] virtual const std::string& get_id() const = 0;
 
         [[nodiscard]] virtual const std::string& get_device_id() const = 0;
+
+        [[nodiscard]] virtual nmos::type get_resource_type() const = 0;
     };
 
     using nmos_resource_ptr  = std::shared_ptr<nmos_resource_t>;

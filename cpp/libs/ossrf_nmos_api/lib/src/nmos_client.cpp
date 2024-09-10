@@ -28,6 +28,17 @@ using namespace bisect;
 using namespace ossrf;
 using json = nlohmann::json;
 
+namespace
+{
+    maybe_ok update_device_sub_resources(nmos_context_ptr context, const std::string& device_id)
+    {
+        const auto senders_ids  = context->resources().get_sender_ids();
+        const auto receiver_ids = context->resources().get_receiver_ids();
+        BST_CHECK(context->nmos().modify_device_sub_resources(utility::s2us(device_id), receiver_ids, senders_ids));
+        return {};
+    }
+} // namespace
+
 struct nmos_client_t::impl
 {
     std::string node_id_;
@@ -75,6 +86,7 @@ maybe_ok nmos_client_t::add_receiver(const std::string& device_id, const std::st
 
     auto r = std::make_shared<nmos_resource_receiver_t>(device_id, receiver_config, callback);
     impl_->context_->resources().insert(receiver_config.id, std::move(r));
+    BST_CHECK(update_device_sub_resources(impl_->context_, device_id));
 
     return {};
 }
@@ -90,6 +102,7 @@ maybe_ok nmos_client_t::add_sender(const std::string& device_id, const std::stri
 
     auto r = std::make_shared<nmos_resource_sender_t>(device_id, sender_config, callback);
     impl_->context_->resources().insert(sender_config.id, std::move(r));
+    BST_CHECK(update_device_sub_resources(impl_->context_, device_id));
 
     return {};
 }

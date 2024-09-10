@@ -53,3 +53,8 @@ maybe_ok nmos_resource_sender_t::handle_patch(bool master_enable, const json& co
 {
     return {};
 }
+
+nmos::type nmos_resource_sender_t::get_resource_type() const
+{
+    return nmos::types::sender;
+}

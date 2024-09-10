@@ -41,6 +41,10 @@ namespace ossrf
         [[nodiscard]] bisect::maybe_ok modify_device(const bisect::nmoscpp::nmos_device_t& config) noexcept override;
 
         [[nodiscard]] bisect::maybe_ok
+        modify_device_sub_resources(const std::string& device_id, const std::vector<std::string>& receivers,
+                                    const std::vector<std::string>& senders) noexcept override;
+
+        [[nodiscard]] bisect::maybe_ok
         modify_receiver(const std::string& device_id, const bisect::nmoscpp::nmos_receiver_t& config) noexcept override;
 
         [[nodiscard]] bisect::maybe_ok modify_sender(const std::string& device_id,
