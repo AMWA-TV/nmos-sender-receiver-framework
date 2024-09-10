@@ -39,6 +39,10 @@ namespace ossrf
         bisect::maybe_ok add_sender(const std::string& device_id, const std::string& config,
                                     bisect::nmoscpp::sender_activation_callback_t callback) noexcept;
 
+        bisect::maybe_ok remove_receiver(const std::string& device_id, const std::string& config) noexcept;
+
+        bisect::maybe_ok remove_sender(const std::string& device_id, const std::string& config) noexcept;
+
         bisect::maybe_ok remove_resource(const std::string& id, const nmos::type& type) noexcept;
 
       private:

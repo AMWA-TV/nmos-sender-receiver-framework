@@ -51,6 +51,7 @@ namespace
         ossrf::gst::plugins::gst_sender_plugin_uptr gst_sender_uptr_2   = nullptr;
         ossrf::gst::plugins::gst_receiver_plugin_uptr gst_receiver_uptr = nullptr;
 
+        std::string receiver_info_config;
         auto receivers_it = app_configuration.find("receivers");
         if(receivers_it != app_configuration.end())
         {
@@ -74,9 +75,10 @@ namespace
                     };
 
                 BST_CHECK(nmos_client->add_receiver(device_id, (*it).dump(), receiver_activation_callback));
+                receiver_info_config = (*it).dump();
             }
         }
-
+        std::string sender_info_config;
         auto senders_it = app_configuration.find("senders");
         if(senders_it != app_configuration.end())
         {
@@ -87,6 +89,7 @@ namespace
                 if(i == 1)
                 {
                     BST_CHECK_ASSIGN(gst_sender_uptr, ossrf::gst::plugins::create_gst_sender_plugin((*it).dump(), 25));
+                    sender_info_config = (*it).dump();
                 }
                 else if(i == 2)
                 {
@@ -97,8 +100,18 @@ namespace
             }
         }
 
-        fmt::print("\n >>> Press a key to stop <<< \n");
+        fmt::print("\n >>> Press a key to stop sender <<< \n");
         char c;
+        std::cin >> c;
+
+        BST_CHECK(nmos_client->remove_sender(device_id, sender_info_config));
+
+        fmt::print("\n >>> Press a key to stop receiver<<< \n");
+        std::cin >> c;
+
+        BST_CHECK(nmos_client->remove_receiver(device_id, receiver_info_config));
+
+        fmt::print("\n >>> Press a key to stop <<< \n");
         std::cin >> c;
 
         BST_CHECK(nmos_client->remove_resource(device_id, nmos::types::device));
