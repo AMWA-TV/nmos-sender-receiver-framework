@@ -79,7 +79,7 @@ std::vector<std::string> resource_map_t::get_sender_ids() const
         {
             if(resource->get_resource_type() == nmos::types::sender)
             {
-                ids.push_back(id);
+                ids.push_back(resource->get_id());
             }
         }
     }
@@ -97,7 +97,7 @@ std::vector<std::string> resource_map_t::get_receiver_ids() const
         {
             if(resource->get_resource_type() == nmos::types::receiver)
             {
-                ids.push_back(id);
+                ids.push_back(resource->get_id());
             }
         }
     }

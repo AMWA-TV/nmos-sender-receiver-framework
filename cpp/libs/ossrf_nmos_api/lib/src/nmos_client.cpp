@@ -85,7 +85,7 @@ maybe_ok nmos_client_t::add_receiver(const std::string& device_id, const std::st
     BST_CHECK(impl_->context_->nmos().add_receiver(device_id, receiver_config));
 
     auto r = std::make_shared<nmos_resource_receiver_t>(device_id, receiver_config, callback);
-    impl_->context_->resources().insert(receiver_config.id, std::move(r));
+    impl_->context_->resources().insert(device_id, std::move(r));
     BST_CHECK(update_device_sub_resources(impl_->context_, device_id));
 
     return {};
@@ -101,7 +101,7 @@ maybe_ok nmos_client_t::add_sender(const std::string& device_id, const std::stri
     BST_CHECK(impl_->context_->nmos().add_sender(device_id, sender_config));
 
     auto r = std::make_shared<nmos_resource_sender_t>(device_id, sender_config, callback);
-    impl_->context_->resources().insert(sender_config.id, std::move(r));
+    impl_->context_->resources().insert(device_id, std::move(r));
     BST_CHECK(update_device_sub_resources(impl_->context_, device_id));
 
     return {};
