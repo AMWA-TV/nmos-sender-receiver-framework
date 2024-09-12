@@ -107,6 +107,28 @@ maybe_ok nmos_client_t::add_sender(const std::string& device_id, const std::stri
     return {};
 }
 
+maybe_ok nmos_client_t::remove_receiver(const std::string& device_id, const std::string& config) noexcept
+{
+    BST_ASSIGN_MUT(receiver_config, nmos_receiver_from_json(json::parse(config)));
+
+    BST_CHECK(remove_resource(receiver_config.id, nmos::types::receiver));
+    BST_CHECK(update_device_sub_resources(impl_->context_, device_id));
+
+    return {};
+}
+
+maybe_ok nmos_client_t::remove_sender(const std::string& device_id, const std::string& config) noexcept
+{
+    BST_ASSIGN_MUT(sender_config, nmos_sender_from_json(json::parse(config)));
+
+    BST_CHECK(remove_resource(sender_config.id, nmos::types::sender));
+    BST_CHECK(remove_resource(sender_config.source.id, nmos::types::source));
+    BST_CHECK(remove_resource(sender_config.flow.id, nmos::types::flow));
+    BST_CHECK(update_device_sub_resources(impl_->context_, device_id));
+
+    return {};
+}
+
 maybe_ok nmos_client_t::remove_resource(const std::string& id, const nmos::type& type) noexcept
 {
     BST_CHECK(impl_->context_->nmos().remove_resource(id, type));

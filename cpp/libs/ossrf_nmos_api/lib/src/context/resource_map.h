@@ -37,7 +37,6 @@ namespace ossrf
         std::vector<std::string> get_sender_ids() const;
         std::vector<std::string> get_receiver_ids() const;
     };
-
     using resource_map_ptr  = std::shared_ptr<resource_map_t>;
     using resource_map_uptr = std::unique_ptr<resource_map_t>;
 } // namespace ossrf
