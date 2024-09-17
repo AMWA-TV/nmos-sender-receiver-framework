@@ -286,6 +286,27 @@ nmos_controller_t::nmos_controller_t(logger_t& logger, web::json::value configur
         return {};
     };
 
+    find_resource_after_ = [this](unsigned int milliseconds, nmos::resources& resources,
+                                  const nmos::id& id) -> expected<nmos::resource> {
+        auto lock = base_controller_.node_model_.read_lock();
+        if(nmos::details::wait_for(base_controller_.node_model_.shutdown_condition, lock,
+                                   std::chrono::milliseconds(delay_millis),
+                                   [&] { return base_controller_.node_model_.shutdown; }))
+        {
+            BST_FAIL("Could not lock node model in order to read the resources in it");
+        }
+
+        const auto resource_it = nmos::find_resource(resources, id);
+        if(resource_it == resources.end())
+        {
+            base_controller_.node_model_.notify();
+            BST_FAIL("Resource with id {} not found", utility::us2s(id));
+        }
+
+        base_controller_.node_model_.notify();
+        return *resource_it;
+    };
+
     if(!nmos::experimental::fields::http_trace(base_controller_.node_model_.settings))
     {
         // Disable TRACE method
@@ -515,7 +536,7 @@ maybe_ok nmos_controller_t::insert_connection_resource(nmos::resource&& resource
     auto id = resource.id;
     BST_CHECK(
         insert_resource_after_(delay_millis, base_controller_.node_model_.connection_resources, std::move(resource)));
-    BST_CHECK(find_resource(id));
+    BST_CHECK(find_connection_resource(id));
 
     return {};
 }
@@ -548,28 +569,24 @@ maybe_ok nmos_controller_t::modify_connection_receiver(const nmos_receiver_t& co
 
 expected<nmos::resource> nmos_controller_t::find_resource(const nmos::id& id)
 {
-    const auto resource_it = nmos::find_resource(base_controller_.node_model_.node_resources, id);
-    BST_ENFORCE(resource_it != base_controller_.node_model_.node_resources.end(),
-                "trying to find a non-existing NMOS resource {}", utility::us2s(id));
-    return *resource_it;
+    return find_resource_after_(delay_millis, base_controller_.node_model_.node_resources, id);
 }
 
 expected<nmos::resource> nmos_controller_t::find_connection_resource(const nmos::id& id)
 {
-    const auto resource_it = nmos::find_resource(base_controller_.node_model_.connection_resources, id);
-    BST_ENFORCE(resource_it != base_controller_.node_model_.connection_resources.end(),
-                "trying to find a non-existing NMOS connection resource {}", utility::us2s(id));
-    return *resource_it;
+    return find_resource_after_(delay_millis, base_controller_.node_model_.connection_resources, id);
 }
 
 maybe_ok nmos_controller_t::erase_resource(const nmos::id& resource_id)
 {
 
     BST_CHECK(erase_resource_after_(delay_millis, base_controller_.node_model_.node_resources, resource_id));
+    auto resource = find_resource(resource_id);
 
-    const auto resource = nmos::find_resource(base_controller_.node_model_.node_resources, resource_id);
-    BST_ENFORCE(base_controller_.node_model_.node_resources.end() == resource,
-                "NMOS Resource with id {} was not deleted", utility::us2s(resource_id));
+    if(!is_error(resource))
+    {
+        BST_FAIL("Error erasing resource.");
+    }
 
     return {};
 }
@@ -577,31 +594,27 @@ maybe_ok nmos_controller_t::erase_resource(const nmos::id& resource_id)
 maybe_ok nmos_controller_t::erase_connection_resource(const nmos::id& resource_id)
 {
     BST_CHECK(erase_resource_after_(delay_millis, base_controller_.node_model_.connection_resources, resource_id));
+    auto resource = find_connection_resource(resource_id);
 
-    const auto resource = nmos::find_resource(base_controller_.node_model_.connection_resources, resource_id);
-    BST_ENFORCE(base_controller_.node_model_.connection_resources.end() == resource,
-                "NMOS Connection resource with id {} was not deleted", utility::us2s(resource_id));
+    if(!is_error(resource))
+    {
+        BST_FAIL("Error erasing connection resource.");
+    }
 
     return {};
 }
 
 maybe_ok nmos_controller_t::erase_device(const nmos::id& device_id)
 {
-    const auto device =
-        nmos::find_resource(base_controller_.node_model_.node_resources, {device_id, nmos::types::device});
+    BST_ASSIGN(device, find_resource(device_id));
 
     std::vector<maybe_ok> maybe_result_deleting_sub_resources;
 
     std::transform(
-        device->sub_resources.begin(), device->sub_resources.end(),
+        device.sub_resources.begin(), device.sub_resources.end(),
         std::back_inserter(maybe_result_deleting_sub_resources),
         [this, resources = base_controller_.node_model_.node_resources](const nmos::id& sub_resource_id) -> maybe_ok {
-            const auto resource = nmos::find_resource(resources, sub_resource_id);
-            if(resources.end() == resource)
-            {
-                slog::log<slog::severities::severe>(base_controller_.gate_, SLOG_FLF)
-                    << "Sub-resource does not exist: " << sub_resource_id;
-            }
+            const auto resource = find_resource(sub_resource_id);
             if(resource->type == nmos::types::receiver || resource->type == nmos::types::sender)
             {
                 return erase_connection_resource(resource->id);
@@ -625,11 +638,7 @@ maybe_ok nmos_controller_t::erase_device(const nmos::id& device_id)
 
 maybe_ok nmos_controller_t::update_transport_file(const nmos::id& sender_id)
 {
-    const auto sender_it =
-        nmos::find_resource(base_controller_.node_model_.node_resources, {sender_id, nmos::types::sender});
-    BST_ENFORCE(sender_it == base_controller_.node_model_.node_resources.end(),
-                "trying to update the transport file of a non-existing NMOS sender {}", utility::us2s(sender_id));
-    auto& sender = *sender_it;
+    BST_ASSIGN(sender, find_resource(sender_id));
 
     modify_connection_resource(sender_id, [this, &sender](nmos::resource& connection_sender) {
         web::json::value endpoint_transportfile;
