@@ -34,17 +34,17 @@ struct gst_st2110_20_sender_impl : gst_sender_plugin_t
     maybe_ok create_gstreamer_pipeline(int pattern)
     {
         // Create pipeline and check if all elements are created successfully
-        BST_CHECK_ASSIGN(pipeline_, bisect::gst::pipeline::create("sender_pipeline"));
+        BST_CHECK_ASSIGN(pipeline_, bisect::gst::pipeline::create(NULL));
         auto* pipeline = pipeline_.get();
 
         // Add pipeline videotestsrc
-        auto* source = gst_element_factory_make("videotestsrc", "source");
+        auto* source = gst_element_factory_make("videotestsrc", NULL);
         BST_ENFORCE(source != nullptr, "Failed creating GStreamer element videotestsrc");
         g_object_set(G_OBJECT(source), "pattern", pattern, NULL);
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), source), "Failed adding videotestsrc to the pipeline");
 
         // Add pipeline capsfilter
-        auto* capsfilter = gst_element_factory_make("capsfilter", "capsfilter");
+        auto* capsfilter = gst_element_factory_make("capsfilter", NULL);
         BST_ENFORCE(capsfilter != nullptr, "Failed creating capsfilter");
 
         // Create caps for capsfilter
@@ -56,22 +56,22 @@ struct gst_st2110_20_sender_impl : gst_sender_plugin_t
         gst_caps_unref(caps);
 
         // Add pipeline queue1
-        auto* queue1 = gst_element_factory_make("queue", "queue1");
+        auto* queue1 = gst_element_factory_make("queue", NULL);
         BST_ENFORCE(queue1 != nullptr, "Failed creating GStreamer element queue");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue1), "Failed adding queue to the pipeline");
 
         // Add pipeline rtpvrawpay
-        auto* rtpvrawpay = gst_element_factory_make("rtpvrawpay", "rtpvrawpay");
+        auto* rtpvrawpay = gst_element_factory_make("rtpvrawpay", NULL);
         BST_ENFORCE(rtpvrawpay != nullptr, "Failed creating GStreamer element rtpvrawpay");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), rtpvrawpay), "Failed adding rtpvrawpay to the pipeline");
 
         // Add pipeline queue2
-        auto* queue2 = gst_element_factory_make("queue", "queue2");
+        auto* queue2 = gst_element_factory_make("queue", NULL);
         BST_ENFORCE(queue2 != nullptr, "Failed creating GStreamer element queue");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue2), "Failed adding queue to the pipeline");
 
         // Add pipeline udpsink
-        auto* udpsink = gst_element_factory_make("udpsink", "udpsink");
+        auto* udpsink = gst_element_factory_make("udpsink", NULL);
         BST_ENFORCE(udpsink != nullptr, "Failed creating GStreamer element udpsink");
         // Set properties
         g_object_set(G_OBJECT(udpsink), "host", s_.primary.destination_ip_address.c_str(), NULL);

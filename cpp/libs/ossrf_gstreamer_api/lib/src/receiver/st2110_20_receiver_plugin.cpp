@@ -34,11 +34,11 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
     maybe_ok create_gstreamer_pipeline()
     {
         // Create pipeline and check if all elements are created successfully
-        BST_CHECK_ASSIGN(pipeline_, bisect::gst::pipeline::create("receiver_pipeline"));
+        BST_CHECK_ASSIGN(pipeline_, bisect::gst::pipeline::create(NULL));
         auto* pipeline = pipeline_.get();
 
         // Add pipeline udp source
-        auto* source = gst_element_factory_make("udpsrc", "source");
+        auto* source = gst_element_factory_make("udpsrc", NULL);
         BST_ENFORCE(source != nullptr, "Failed creating GStreamer element udpsrc");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), source), "Failed adding udpsrc to the pipeline");
         // Set udp source params
@@ -53,27 +53,27 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
         g_object_set(G_OBJECT(source), "caps", caps, NULL);
 
         // Add pipeline rtpjitterbuffer
-        auto* jitter_buffer = gst_element_factory_make("rtpjitterbuffer", "jitter_buffer");
+        auto* jitter_buffer = gst_element_factory_make("rtpjitterbuffer", NULL);
         BST_ENFORCE(jitter_buffer != nullptr, "Failed creating GStreamer element jitter_buffer");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), jitter_buffer), "Failed adding jitter_buffer to the pipeline");
 
         // Add pipeline queue1
-        auto* queue1 = gst_element_factory_make("queue", "queue1");
+        auto* queue1 = gst_element_factory_make("queue", NULL);
         BST_ENFORCE(queue1 != nullptr, "Failed creating GStreamer element queue");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue1), "Failed adding queue to the pipeline");
 
         // Add pipeline rtp depay
-        auto* depay = gst_element_factory_make("rtpvrawdepay", "rtp_raw_depay");
+        auto* depay = gst_element_factory_make("rtpvrawdepay", NULL);
         BST_ENFORCE(depay != nullptr, "Failed creating GStreamer element depay");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), depay), "Failed adding depay to the pipeline");
 
         // Add pipeline videoconvert
-        auto* videoconvert = gst_element_factory_make("videoconvert", "converter");
+        auto* videoconvert = gst_element_factory_make("videoconvert", NULL);
         BST_ENFORCE(videoconvert != nullptr, "Failed creating GStreamer element converter");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), videoconvert), "Failed adding converter to the pipeline");
 
         // Add pipeline video sink
-        auto* sink = gst_element_factory_make("autovideosink", "sink");
+        auto* sink = gst_element_factory_make("autovideosink", NULL);
         BST_ENFORCE(sink != nullptr, "Failed creating GStreamer element sink");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), sink), "Failed adding sink to the pipeline");
 
