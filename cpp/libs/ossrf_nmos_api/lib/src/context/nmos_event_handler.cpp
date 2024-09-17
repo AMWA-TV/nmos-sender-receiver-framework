@@ -56,3 +56,9 @@ maybe_ok nmos_event_handler::handle_patch_request(const nmos::resource& resource
     BST_CHECK(r->handle_patch(master_enable, json::parse(endpoint_staged)));
     return {};
 }
+
+expected<sdp_info_t> nmos_event_handler::handle_sdp_info_request(const nmos::id& resource_id)
+{
+    BST_ASSIGN(r, context_->resources().find_resource(resource_id));
+    return r->handle_sdp_info_request();
+}

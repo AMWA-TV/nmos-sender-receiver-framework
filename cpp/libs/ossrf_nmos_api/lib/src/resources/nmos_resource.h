@@ -15,6 +15,7 @@
 #pragma once
 
 #include "bisect/expected.h"
+#include "bisect/nmoscpp/nmos_event_handler.h"
 #include <nlohmann/json_fwd.hpp>
 #include <nmos/id.h>
 #include <string>
@@ -32,6 +33,8 @@ namespace ossrf
                                                             const nlohmann::json& configuration)   = 0;
         [[nodiscard]] virtual bisect::maybe_ok handle_activation(bool master_enable,
                                                                  nlohmann::json& transport_params) = 0;
+
+        [[nodiscard]] virtual bisect::expected<bisect::nmoscpp::sdp_info_t> handle_sdp_info_request() = 0;
 
         [[nodiscard]] virtual const std::string& get_id() const = 0;
 

@@ -119,6 +119,11 @@ maybe_ok nmos_resource_receiver_t::handle_activation(bool master_enable, json& t
     return {};
 }
 
+expected<sdp_info_t> nmos_resource_receiver_t::handle_sdp_info_request()
+{
+    return sdp_info_t{};
+};
+
 nmos::type nmos_resource_receiver_t::get_resource_type() const
 {
     return nmos::types::receiver;

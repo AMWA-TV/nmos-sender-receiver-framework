@@ -30,6 +30,8 @@ namespace ossrf
         bisect::maybe_ok handle_activation(bool master_enable, nlohmann::json& transport_params) override;
         bisect::maybe_ok handle_patch(bool master_enable, const nlohmann::json& configuration) override;
 
+        bisect::expected<bisect::nmoscpp::sdp_info_t> handle_sdp_info_request() override;
+
         const std::string& get_id() const override;
 
         const std::string& get_device_id() const override;
