@@ -199,6 +199,8 @@ bisect::maybe_ok bisect::nmoscpp::build_transport_file(const nmos::resources& no
 
     fmt::print("setting transportfile for {}\n", utility::us2s(sender.id));
 
+    BST_ASSIGN(info, event_handler->handle_sdp_info_request(sender.id));
+
     const auto node_id = nmos::find_self_resource(node_resources)->id.c_str();
     const auto node    = nmos::find_resource(node_resources, {node_id, nmos::types::node});
 
@@ -223,25 +225,24 @@ bisect::maybe_ok bisect::nmoscpp::build_transport_file(const nmos::resources& no
         const nmos::format format{nmos::fields::format(flow->data)};
         if(nmos::formats::video == format)
         {
-            return nmos::make_video_sdp_parameters(node->data, source->data, flow->data, sender.data, 97, mids, {},
-                                                   conan_sdp::type_parameters::type_N);
+            return nmos::make_video_sdp_parameters(node->data, source->data, flow->data, sender.data, info.payload_type,
+                                                   mids, {}, conan_sdp::type_parameters::type_N);
         }
         else if(nmos::formats::audio == format)
         {
             const double packet_time = nmos::fields::channels(source->data).size() > 8 ? 0.125 : 1;
-            return nmos::make_audio_sdp_parameters(node->data, source->data, flow->data, sender.data,
-                                                   nmos::details::payload_type_audio_default, mids, {}, packet_time);
+            return nmos::make_audio_sdp_parameters(node->data, source->data, flow->data, sender.data, info.payload_type,
+                                                   mids, {}, packet_time);
         }
         else if(nmos::formats::data == format)
         {
-            return nmos::make_data_sdp_parameters(node->data, source->data, flow->data, sender.data,
-                                                  nmos::details::payload_type_data_default, mids, {}, {});
+            return nmos::make_data_sdp_parameters(node->data, source->data, flow->data, sender.data, info.payload_type,
+                                                  mids, {}, {});
         }
         else if(nmos::formats::mux == format)
         {
-            return nmos::make_mux_sdp_parameters(node->data, source->data, flow->data, sender.data,
-                                                 nmos::details::payload_type_mux_default, mids, {},
-                                                 conan_sdp::type_parameters::type_N);
+            return nmos::make_mux_sdp_parameters(node->data, source->data, flow->data, sender.data, info.payload_type,
+                                                 mids, {}, conan_sdp::type_parameters::type_N);
         }
         else
         {

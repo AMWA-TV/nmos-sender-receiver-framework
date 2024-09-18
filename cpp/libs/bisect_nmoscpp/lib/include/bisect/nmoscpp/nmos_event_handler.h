@@ -18,6 +18,12 @@
 
 namespace bisect::nmoscpp
 {
+    struct sdp_info_t
+    {
+        uint8_t payload_type;
+        float packet_time;
+    };
+
     class nmos_event_handler_t
     {
       public:
@@ -29,7 +35,8 @@ namespace bisect::nmoscpp
 
         [[nodiscard]] virtual maybe_ok handle_patch_request(const nmos::resource& resource,
                                                             const nmos::resource& connection_resource,
-                                                            const std::string& endpoint_staged) = 0;
+                                                            const std::string& endpoint_staged)               = 0;
+        [[nodiscard]] virtual bisect::expected<sdp_info_t> handle_sdp_info_request(const nmos::id& sender_id) = 0;
     };
 
 } // namespace bisect::nmoscpp

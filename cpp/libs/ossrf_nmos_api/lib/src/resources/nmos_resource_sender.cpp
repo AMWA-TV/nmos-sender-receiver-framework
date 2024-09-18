@@ -16,16 +16,46 @@
 #include "bisect/sdp/media_types.h"
 #include "../serialization/sender.h"
 #include <nmos/id.h>
+#include <nmos/sdp_utils.h>
 
 using namespace ossrf;
 using namespace bisect;
 using namespace bisect::nmoscpp;
+using namespace bisect::sdp;
 using json = nlohmann::json;
+
+namespace
+{
+    uint8_t get_default_pt(nmos::format format)
+    {
+        if(nmos::formats::video == format)
+        {
+            return nmos::details::payload_type_video_default;
+        }
+        else if(nmos::formats::audio == format)
+        {
+            return nmos::details::payload_type_audio_default;
+        }
+        else if(nmos::formats::data == format)
+        {
+            return nmos::details::payload_type_data_default;
+        }
+        else if(nmos::formats::mux == format)
+        {
+            return nmos::details::payload_type_mux_default;
+        }
+        else
+        {
+            throw std::logic_error("unexpected flow format");
+        }
+    }
+} // namespace
 
 nmos_resource_sender_t::nmos_resource_sender_t(const std::string& device_id, const nmos_sender_t& config,
                                                sender_activation_callback_t callback)
     : config_(config), activation_callback_(callback), device_id_(device_id)
 {
+    sdp_ = config_.forced_sdp;
 }
 
 const std::string& nmos_resource_sender_t::get_device_id() const
@@ -53,6 +83,21 @@ maybe_ok nmos_resource_sender_t::handle_patch(bool master_enable, const json& co
 {
     return {};
 }
+
+expected<sdp_info_t> nmos_resource_sender_t::handle_sdp_info_request()
+{
+    sdp_info_t info{};
+
+    info.payload_type = config_.payload_type.value_or(get_default_pt(config_.format));
+
+    if(config_.media_type == media_types::AUDIO_L24)
+    {
+        const auto& audio = std::get<audio_sender_info_t>(config_.media);
+        info.packet_time  = audio.packet_time;
+    }
+
+    return info;
+};
 
 nmos::type nmos_resource_sender_t::get_resource_type() const
 {

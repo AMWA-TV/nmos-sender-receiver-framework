@@ -31,6 +31,9 @@ namespace ossrf
                                                             const nmos::resource& connection_resource,
                                                             const std::string& endpoint_staged) override;
 
+        [[nodiscard]] bisect::expected<bisect::nmoscpp::sdp_info_t>
+        handle_sdp_info_request(const nmos::id& resource_id) override;
+
       private:
         nmos_context_ptr const context_;
     };
