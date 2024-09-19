@@ -21,6 +21,13 @@ using namespace bisect;
 using namespace ossrf::gst::receiver;
 using namespace ossrf::gst::plugins;
 
+namespace
+{
+    constexpr auto queue_max_size_time    = 200000;
+    constexpr auto queue_max_size_buffers = 0;
+    constexpr auto queue_max_size_bytes   = 0;
+}; // namespace
+
 struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
 {
     receiver_settings s_;
@@ -41,11 +48,13 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
         auto* source = gst_element_factory_make("udpsrc", NULL);
         BST_ENFORCE(source != nullptr, "Failed creating GStreamer element udpsrc");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), source), "Failed adding udpsrc to the pipeline");
+
         // Set udp source params
         g_object_set(G_OBJECT(source), "address", s_.primary.source_ip_address.c_str(), NULL);
         g_object_set(G_OBJECT(source), "auto-multicast", TRUE, NULL);
         g_object_set(G_OBJECT(source), "port", s_.primary.source_port, NULL);
         g_object_set(G_OBJECT(source), "multicast-iface", s_.primary.interface_name.c_str(), NULL);
+
         // Create and set caps for udp source
         GstCaps* caps = gst_caps_from_string(
             "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)RAW, "
@@ -61,11 +70,20 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
         auto* queue1 = gst_element_factory_make("queue", NULL);
         BST_ENFORCE(queue1 != nullptr, "Failed creating GStreamer element queue");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue1), "Failed adding queue to the pipeline");
+        g_object_set(G_OBJECT(queue1), "max-size-time", queue_max_size_time, "max-size-buffers", queue_max_size_buffers,
+                     "max-size-bytes", queue_max_size_bytes, NULL);
 
         // Add pipeline rtp depay
         auto* depay = gst_element_factory_make("rtpvrawdepay", NULL);
         BST_ENFORCE(depay != nullptr, "Failed creating GStreamer element depay");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), depay), "Failed adding depay to the pipeline");
+
+        // Add pipeline queue2
+        auto* queue2 = gst_element_factory_make("queue", NULL);
+        BST_ENFORCE(queue2 != nullptr, "Failed creating GStreamer element queue");
+        BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue2), "Failed adding queue to the pipeline");
+        g_object_set(G_OBJECT(queue1), "max-size-time", queue_max_size_time, "max-size-buffers", queue_max_size_buffers,
+                     "max-size-bytes", queue_max_size_bytes, NULL);
 
         // Add pipeline videoconvert
         auto* videoconvert = gst_element_factory_make("videoconvert", NULL);
@@ -77,8 +95,8 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
         BST_ENFORCE(sink != nullptr, "Failed creating GStreamer element sink");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), sink), "Failed adding sink to the pipeline");
 
-        // Link elements
-        BST_ENFORCE(gst_element_link_many(source, jitter_buffer, queue1, depay, videoconvert, sink, NULL),
+        // Link all elements together
+        BST_ENFORCE(gst_element_link_many(source, queue1, depay, queue2, videoconvert, sink, NULL),
                     "Failed linking GStreamer video pipeline");
 
         // Setup runner
