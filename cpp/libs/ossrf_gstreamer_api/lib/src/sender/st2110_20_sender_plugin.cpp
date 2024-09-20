@@ -21,6 +21,13 @@ using namespace bisect;
 using namespace ossrf::gst::sender;
 using namespace ossrf::gst::plugins;
 
+namespace
+{
+    constexpr auto queue_max_size_time    = 200000;
+    constexpr auto queue_max_size_buffers = 0;
+    constexpr auto queue_max_size_bytes   = 0;
+}; // namespace
+
 struct gst_st2110_20_sender_impl : gst_sender_plugin_t
 {
     sender_settings s_;
@@ -58,17 +65,14 @@ struct gst_st2110_20_sender_impl : gst_sender_plugin_t
         // Add pipeline queue1
         auto* queue1 = gst_element_factory_make("queue", NULL);
         BST_ENFORCE(queue1 != nullptr, "Failed creating GStreamer element queue");
+        g_object_set(G_OBJECT(queue1), "max-size-time", queue_max_size_time, "max-size-buffers", queue_max_size_buffers,
+                     "max-size-bytes", queue_max_size_bytes, NULL);
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue1), "Failed adding queue to the pipeline");
 
         // Add pipeline rtpvrawpay
         auto* rtpvrawpay = gst_element_factory_make("rtpvrawpay", NULL);
         BST_ENFORCE(rtpvrawpay != nullptr, "Failed creating GStreamer element rtpvrawpay");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), rtpvrawpay), "Failed adding rtpvrawpay to the pipeline");
-
-        // Add pipeline queue2
-        auto* queue2 = gst_element_factory_make("queue", NULL);
-        BST_ENFORCE(queue2 != nullptr, "Failed creating GStreamer element queue");
-        BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue2), "Failed adding queue to the pipeline");
 
         // Add pipeline udpsink
         auto* udpsink = gst_element_factory_make("udpsink", NULL);
@@ -81,7 +85,7 @@ struct gst_st2110_20_sender_impl : gst_sender_plugin_t
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), udpsink), "Failed adding udpsink to the pipeline");
 
         // Link elements
-        BST_ENFORCE(gst_element_link_many(source, capsfilter, queue1, rtpvrawpay, queue2, udpsink, NULL),
+        BST_ENFORCE(gst_element_link_many(source, capsfilter, queue1, rtpvrawpay, udpsink, NULL),
                     "Failed linking GStreamer video pipeline");
 
         // Setup runner
