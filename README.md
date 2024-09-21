@@ -18,11 +18,11 @@ CMake >= 3.16
 
 Clone the repository:
 
-`git clone git@github.com:bisect-pt/ossrf.git`
+`git clone git@github.com:AMWA-TV/nmos-sender-receiver-framework.git`
 
 or
 
-`git clone https://github.com/bisect-pt/ossrf.git`
+`git clone https://github.com/AMWA-TV/nmos-sender-receiver-framework.git`
 
 ## Setup Docker Containers
 
