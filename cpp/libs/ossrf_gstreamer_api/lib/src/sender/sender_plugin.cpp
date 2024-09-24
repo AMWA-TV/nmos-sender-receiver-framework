@@ -18,6 +18,7 @@
 #include "bisect/expected/match.h"
 #include "bisect/json.h"
 #include "st2110_20_sender_plugin.h"
+#include "st2110_30_sender_plugin.h"
 #include <nlohmann/json.hpp>
 
 using namespace bisect;
@@ -95,7 +96,7 @@ namespace
         {
             BST_CHECK_ASSIGN(s.format, video_sender_info_from_json(media));
         }
-        else if(media_type == "audio/raw")
+        else if(media_type == "audio/L24")
         {
             BST_CHECK_ASSIGN(s.format, audio_l24_sender_info_from_json(media));
         }
@@ -117,6 +118,12 @@ namespace
                                                       int pattern)
     {
         return create_gst_st2110_20_plugin(settings, format, pattern);
+    }
+
+    expected<gst_sender_plugin_uptr> do_create_plugin(const audio_info_t& format, const sender_settings& settings,
+                                                      int pattern)
+    {
+        return create_gst_st2110_30_plugin(settings, format);
     }
 } // namespace
 

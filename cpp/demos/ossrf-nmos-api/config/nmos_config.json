@@ -5,7 +5,7 @@
             "label": "BISECT OSSRF Node",
             "description": "BISECT OSSRF node",
             "host_addresses": [
-                "192.168.1.79"
+                "192.168.1.15"
             ],
             "interfaces": [
                 {
@@ -24,10 +24,10 @@
                     "locked": true
                 }
             ],
-            "registry_address": "192.168.1.79",
+            "registry_address": "192.168.1.15",
             "registry_version": "v1.3",
             "registration_port": 8010,
-            "system_address": "192.168.1.79",
+            "system_address": "192.168.1.15",
             "system_version": "v1.0",
             "system_port": 8010
         }
@@ -44,7 +44,7 @@
             "description": "BISECT OSSRF receiver video",
             "network": {
                 "primary": {
-                    "interface_address": "192.168.1.79",
+                    "interface_address": "192.168.1.15",
                     "interface_name": "wlp1s0"
                 }
             },
@@ -60,7 +60,7 @@
             "description": "BISECT OSSRF sender video 1",
             "network": {
                 "primary": {
-                    "source_address": "192.168.1.79",
+                    "source_address": "192.168.1.15",
                     "interface_name": "wlp1s0",
                     "destination_address": "239.10.10.10",
                     "destination_port": 5004
@@ -81,27 +81,22 @@
         },
         {
             "id": "f2aa5651-c673-448c-bd02-5e8475898c7f",
-            "label": "BISECT OSSRF sender video 2",
-            "description": "BISECT OSSRF sender video 2",
+            "label": "BISECT OSSRF sender audio",
+            "description": "BISECT OSSRF sender audio",
             "network": {
                 "primary": {
-                    "source_address": "192.168.1.79",
+                    "source_address": "192.168.1.15",
                     "interface_name": "wlp1s0",
                     "destination_address": "239.10.10.11",
                     "destination_port": 5005
                 }
             },
             "payload_type": 97,
-            "media_type": "video/raw",
+            "media_type": "audio/L24",
             "media": {
-                "width": 640,
-                "height": 480,
-                "frame_rate": {
-                    "num": 50,
-                    "den": 1
-                },
-                "sampling": "RGB_444",
-                "structure": "progressive"
+                "number_of_channels": 2,
+                "sampling_rate": 48000,
+                "packet_time": 1.000
             }
         }
     ]
