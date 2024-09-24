@@ -5,7 +5,7 @@
             "label": "BISECT OSSRF Node",
             "description": "BISECT OSSRF node",
             "host_addresses": [
-                "192.168.1.15"
+                "192.168.1.85"
             ],
             "interfaces": [
                 {
@@ -24,10 +24,10 @@
                     "locked": true
                 }
             ],
-            "registry_address": "192.168.1.15",
+            "registry_address": "192.168.1.85",
             "registry_version": "v1.3",
             "registration_port": 8010,
-            "system_address": "192.168.1.15",
+            "system_address": "192.168.1.85",
             "system_version": "v1.0",
             "system_port": 8010
         }
@@ -44,23 +44,37 @@
             "description": "BISECT OSSRF receiver video",
             "network": {
                 "primary": {
-                    "interface_address": "192.168.1.15",
+                    "interface_address": "192.168.1.85",
                     "interface_name": "wlp1s0"
                 }
             },
             "capabilities": [
                 "video/raw"
             ]
+        },
+        {
+            "id": "15319770-0fc3-41c9-8985-aab2983d9ed0",
+            "label": "BISECT OSSRF receiver audio",
+            "description": "BISECT OSSRF receiver audio",
+            "network": {
+                "primary": {
+                    "interface_address": "192.168.1.85",
+                    "interface_name": "wlp1s0"
+                }
+            },
+            "capabilities": [
+                "audio/L24"
+            ]
         }
     ],
     "senders": [
         {
             "id": "e543a2c1-d6a2-47f5-8d14-296bb6714ef2",
-            "label": "BISECT OSSRF sender video 1",
-            "description": "BISECT OSSRF sender video 1",
+            "label": "BISECT OSSRF sender video",
+            "description": "BISECT OSSRF sender video",
             "network": {
                 "primary": {
-                    "source_address": "192.168.1.15",
+                    "source_address": "192.168.1.85",
                     "interface_name": "wlp1s0",
                     "destination_address": "239.10.10.10",
                     "destination_port": 5004
@@ -75,7 +89,7 @@
                     "num": 50,
                     "den": 1
                 },
-                "sampling": "RGB_444",
+                "sampling": "YCbCr-4:2:2",
                 "structure": "progressive"
             }
         },
@@ -85,7 +99,7 @@
             "description": "BISECT OSSRF sender audio",
             "network": {
                 "primary": {
-                    "source_address": "192.168.1.15",
+                    "source_address": "192.168.1.85",
                     "interface_name": "wlp1s0",
                     "destination_address": "239.10.10.11",
                     "destination_port": 5005

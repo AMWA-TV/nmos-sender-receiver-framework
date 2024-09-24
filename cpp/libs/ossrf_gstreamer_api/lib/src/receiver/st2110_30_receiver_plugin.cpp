@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "st2110_20_receiver_plugin.h"
+#include "st2110_30_receiver_plugin.h"
 #include "bisect/expected/macros.h"
 #include "bisect/pipeline.h"
 #include <gst/gst.h>
-#include "fmt/format.h"
 
 using namespace bisect;
 using namespace ossrf::gst::receiver;
@@ -29,15 +28,15 @@ namespace
     constexpr auto queue_max_size_bytes   = 0;
 }; // namespace
 
-struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
+struct gst_st2110_30_receiver_impl : gst_receiver_plugin_t
 {
     receiver_settings s_;
-    video_info_t f_;
+    audio_info_t f_;
     gst::pipeline pipeline_;
 
-    gst_st2110_20_receiver_impl(receiver_settings settings, video_info_t format) : s_(settings), f_(format) {}
+    gst_st2110_30_receiver_impl(receiver_settings settings, audio_info_t format) : s_(settings), f_(format) {}
 
-    ~gst_st2110_20_receiver_impl() { stop(); }
+    ~gst_st2110_30_receiver_impl() { stop(); }
 
     maybe_ok create_gstreamer_pipeline()
     {
@@ -57,11 +56,9 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
         g_object_set(G_OBJECT(source), "multicast-iface", s_.primary.interface_name.c_str(), NULL);
 
         // Create and set caps for udp source
-        GstCaps* caps = gst_caps_new_simple("application/x-rtp", "media", G_TYPE_STRING, "video", "clock-rate",
-                                            G_TYPE_INT, 90000, "encoding-name", G_TYPE_STRING, "RAW", "width",
-                                            G_TYPE_STRING, std::to_string(f_.width).c_str(), "height", G_TYPE_STRING,
-                                            std::to_string(f_.height).c_str(), "sampling", G_TYPE_STRING,
-                                            f_.chroma_sub_sampling.c_str(), "depth", G_TYPE_STRING, "10", NULL);
+        constexpr auto t = R"(application/x-rtp, clock-rate={rate}, channels={channels})";
+        GstCaps* caps    = gst_caps_from_string(
+            fmt::format(t, fmt::arg("rate", f_.sampling_rate), fmt::arg("channels", f_.number_of_channels)).c_str());
         g_object_set(G_OBJECT(source), "caps", caps, NULL);
 
         // Add pipeline rtpjitterbuffer
@@ -77,29 +74,17 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
                      "max-size-bytes", queue_max_size_bytes, NULL);
 
         // Add pipeline rtp depay
-        auto* depay = gst_element_factory_make("rtpvrawdepay", NULL);
+        auto* depay = gst_element_factory_make("rtpL24depay", NULL);
         BST_ENFORCE(depay != nullptr, "Failed creating GStreamer element depay");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), depay), "Failed adding depay to the pipeline");
 
-        // Add pipeline queue2
-        auto* queue2 = gst_element_factory_make("queue", NULL);
-        BST_ENFORCE(queue2 != nullptr, "Failed creating GStreamer element queue");
-        BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), queue2), "Failed adding queue to the pipeline");
-        g_object_set(G_OBJECT(queue2), "max-size-time", queue_max_size_time, "max-size-buffers", queue_max_size_buffers,
-                     "max-size-bytes", queue_max_size_bytes, NULL);
-
-        // Add pipeline videoconvert
-        auto* videoconvert = gst_element_factory_make("videoconvert", NULL);
-        BST_ENFORCE(videoconvert != nullptr, "Failed creating GStreamer element converter");
-        BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), videoconvert), "Failed adding converter to the pipeline");
-
         // Add pipeline video sink
-        auto* sink = gst_element_factory_make("autovideosink", NULL);
+        auto* sink = gst_element_factory_make("pulsesink", NULL);
         BST_ENFORCE(sink != nullptr, "Failed creating GStreamer element sink");
         BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), sink), "Failed adding sink to the pipeline");
 
         // Link all elements together
-        BST_ENFORCE(gst_element_link_many(source, jitter_buffer, queue1, depay, queue2, videoconvert, sink, NULL),
+        BST_ENFORCE(gst_element_link_many(source, jitter_buffer, queue1, depay, sink, NULL),
                     "Failed linking GStreamer video pipeline");
 
         // Setup runner
@@ -115,10 +100,10 @@ struct gst_st2110_20_receiver_impl : gst_receiver_plugin_t
     }
 };
 
-expected<gst_receiver_plugin_uptr> ossrf::gst::plugins::create_gst_st2110_20_plugin(receiver_settings settings,
-                                                                                    video_info_t format) noexcept
+expected<gst_receiver_plugin_uptr> ossrf::gst::plugins::create_gst_st2110_30_plugin(receiver_settings settings,
+                                                                                    audio_info_t format) noexcept
 {
-    auto i = std::make_unique<gst_st2110_20_receiver_impl>(settings, format);
+    auto i = std::make_unique<gst_st2110_30_receiver_impl>(settings, format);
 
     BST_CHECK(i->create_gstreamer_pipeline());
 

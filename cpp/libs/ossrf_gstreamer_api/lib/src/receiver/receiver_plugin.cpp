@@ -19,6 +19,7 @@
 #include "bisect/json.h"
 #include "bisect/sdp/reader.h"
 #include "st2110_20_receiver_plugin.h"
+#include "st2110_30_receiver_plugin.h"
 #include <nlohmann/json.hpp>
 
 using namespace bisect;
@@ -50,6 +51,16 @@ namespace
         return info;
     }
 
+    audio_info_t translate_sdp_audio_settings(const audio_sender_info_t audio_settings)
+    {
+        audio_info_t info;
+        info.bits_per_sample    = audio_settings.bits_per_sample;
+        info.number_of_channels = audio_settings.number_of_channels;
+        info.packet_time        = audio_settings.packet_time;
+        info.sampling_rate      = audio_settings.sampling_rate;
+        return info;
+    }
+
     expected<receiver_settings> translate_json(const json& config, sdp_settings_t sdp_settings)
     {
         receiver_settings s;
@@ -75,10 +86,10 @@ namespace
             auto v   = std::get<video_sender_info_t>(sdp_settings.format);
             s.format = translate_sdp_video_settings(v);
         }
-        else if(c == "audio/raw" && std::holds_alternative<audio_sender_info_t>(sdp_settings.format))
+        else if(c == "audio/L24" && std::holds_alternative<audio_sender_info_t>(sdp_settings.format))
         {
-            audio_info_t info;
-            s.format = info;
+            auto a   = std::get<audio_sender_info_t>(sdp_settings.format);
+            s.format = translate_sdp_audio_settings(a);
         }
         else
         {
@@ -96,6 +107,11 @@ namespace
     expected<gst_receiver_plugin_uptr> do_create_plugin(const video_info_t& format, const receiver_settings& settings)
     {
         return create_gst_st2110_20_plugin(settings, format);
+    }
+
+    expected<gst_receiver_plugin_uptr> do_create_plugin(const audio_info_t& format, const receiver_settings& settings)
+    {
+        return create_gst_st2110_30_plugin(settings, format);
     }
 } // namespace
 

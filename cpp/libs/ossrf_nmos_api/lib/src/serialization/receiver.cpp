@@ -41,7 +41,7 @@ namespace
             receiver.media_types = {nmos::media_types::video_raw};
             receiver.format      = nmos::formats::video;
         }
-        else if(media_type == "audio/raw")
+        else if(media_type == "audio/L24")
         {
             receiver.media_types = {nmos::media_types::audio_L24};
             receiver.format      = nmos::formats::audio;
