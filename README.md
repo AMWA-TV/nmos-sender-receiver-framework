@@ -111,3 +111,6 @@ Open `cpp/demos/ossrf-nmos-api/config/nmos_config.json` and adjust the following
   `./build/Debug/cpp/demos/ossrf-nmos-api/ossrf-nmos-api -f ./cpp/demos/ossrf-nmos-api/config/nmos_config.json`
 
 
+## Build Container and Code simultaneously
+
+    ./scripts/build-inside-container.sh

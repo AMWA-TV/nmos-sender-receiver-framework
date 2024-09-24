@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 # Versions
 ENV CONAN_VERSION=2.4.0
-ENV CMAKE_VERSION=3.27.0
+ENV CMAKE_VERSION=3.28.4
 ENV SSHD_PORT=55555
 
 
@@ -23,6 +23,7 @@ RUN /opt/bisect/scripts/build-tools/install-cmake-x86.sh
 RUN apt-get install -y \
     vim clang-format rsync gdb gdbserver x11-apps xauth iproute2 build-essential
 RUN apt-get install -y libgtk-3-dev ninja-build
+ENV PATH="/opt/cmake/bin:${PATH}"
 
 RUN /opt/bisect/scripts/common/add-ssh-server.sh
 
