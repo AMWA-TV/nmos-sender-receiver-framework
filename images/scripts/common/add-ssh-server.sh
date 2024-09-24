@@ -19,6 +19,6 @@ echo "X11UseLocalhost no";
 echo "Port ${SSHD_PORT}"; 
 echo "PasswordAuthentication yes"; 
 echo "Subsystem sftp /usr/lib/openssh/sftp-server"; 
-) > /etc/ssh/sshd_config_bisect 
+) > /etc/ssh/sshd_config_nmos
 
 mkdir /run/sshd

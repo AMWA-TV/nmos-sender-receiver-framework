@@ -41,6 +41,8 @@ This will run the docker containers:
 
 ## Access the Development Container
 
+This project includes a development container to facilitate code development. When the container is built for the first time, it is empty, and the repository needs to be cloned again inside the container to build the project.
+
 ### Using VSCode
 
 Install `ms-vscode-remote.remote-ssh` extension on vscode and enter on the container.
@@ -53,7 +55,11 @@ First you need to check you IP address. You can do it by running:
 
 Once you know your ip address you enter the container by doing:
 
-    ssh -p 55555 bisect@{your-ip-address} -XY
+    ssh -p 55555 nmos@{your-ip-address} -XY
+
+The password for this user is:
+
+    nmos
 
 ## Access NVIDIA NMOS Commissioning Controller Container
 
@@ -80,6 +86,10 @@ If you have not used Conan before:
 - set the default Conan profile, e.g.
 
   conan profile detect --force
+
+- You can map an outside of the container .conan2 folder in order to have persistent data storage. You just need to add the line below on to the volumes inside the docker-compose-x86-development.yml. 
+
+  - /.conan2:/home/nmos/.conan2:rw  
 
 ### Install the dependencies using Conan
 
