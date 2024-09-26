@@ -181,6 +181,8 @@ nmos::interlace_mode bisect::get_interlace_mode(const nmos::settings& settings)
                : nmos::interlace_modes::progressive;
 }
 
+/******************************** Warning ********************************/ 
+/* before calling this function make sure that the model is locked in */
 bisect::maybe_ok bisect::nmoscpp::build_transport_file(const nmos::resources& node_resources,
                                                        nmos_event_handler_t* event_handler,
                                                        const nmos::resource& sender,

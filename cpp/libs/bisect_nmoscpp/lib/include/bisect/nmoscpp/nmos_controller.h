@@ -96,6 +96,10 @@ namespace bisect::nmoscpp
 
         std::function<maybe_ok(unsigned int milliseconds, nmos::resources& resources, const nmos::id& resource_id)>
             erase_resource_after_;
+
+        std::function<bisect::expected<nmos::resource>(unsigned int milliseconds, nmos::resources& resources,
+                                                       const nmos::id& id)>
+            find_resource_after_;
     };
 
     using nmos_controller_uptr = std::unique_ptr<nmos_controller_t>;
