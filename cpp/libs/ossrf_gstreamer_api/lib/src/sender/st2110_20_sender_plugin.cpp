@@ -55,7 +55,7 @@ struct gst_st2110_20_sender_impl : gst_sender_plugin_t
         BST_ENFORCE(capsfilter != nullptr, "Failed creating capsfilter");
 
         // Create caps for capsfilter
-        auto* caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "RGB", "width", G_TYPE_INT, f_.width,
+        auto* caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "UYVP", "width", G_TYPE_INT, f_.width,
                                          "height", G_TYPE_INT, f_.height, NULL);
         BST_ENFORCE(caps != nullptr, "Failed creating GStreamer video caps");
         g_object_set(G_OBJECT(capsfilter), "caps", caps, NULL);
