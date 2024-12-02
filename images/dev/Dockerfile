@@ -44,6 +44,12 @@ RUN apt-get autoremove
 
 RUN chmod +x /opt/nmos/scripts/launch.sh
 
+WORKDIR /etc
+RUN sudo mv bash.bashrc bash.bashrc.tmp
+RUN sudo printf "export PULSE_SERVER=unix:/run/user/1000/pulse/native\n " > bash.bashrc
+RUN cat bash.bashrc.tmp >> bash.bashrc
+
+
 WORKDIR /home/nmos
 USER nmos
 ENTRYPOINT /opt/nmos/scripts/launch.sh
