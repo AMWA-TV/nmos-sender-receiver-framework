@@ -6,7 +6,7 @@ Developing OSSRF for AWMA by Bisect.
 
 ## Platforms
 
-Currently, only Linux is supported. 
+Currently, only Linux is supported.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ or
 
 This will create the docker containers base on the docker compose:
 
-    docker compose -f images/docker-compose-x86-development.yml build 
+    docker compose -f images/docker-compose-x86-development.yml build
 
 One of the containers is the ossrf-dev where you can find the development container.
 The other is nmos-registry where will launch the NVIDIA NMOS Commissioning Controller
@@ -68,7 +68,7 @@ The password for this user is:
 You can access the UI by opening your favorite browser and go to this link:
 
     http://localhost:8010/admin/
-    
+
 ## Build
 
 ### Prepare Conan
@@ -87,9 +87,9 @@ If you have not used Conan before:
 
   conan profile detect --force
 
-- You can map an outside of the container .conan2 folder in order to have persistent data storage. You just need to add the line below on to the volumes inside the docker-compose-x86-development.yml. 
+- You can map an outside of the container .conan2 folder in order to have persistent data storage. You just need to add the line below on to the volumes inside the docker-compose-x86-development.yml.
 
-  - /.conan2:/home/nmos/.conan2:rw  
+  - ~/.conan2:/home/nmos/.conan2:rw
 
 ### Install the dependencies using Conan
 
@@ -102,9 +102,12 @@ This only has to be done at the first time or after any of the dependencies chan
     ./scripts/build.sh
 
 ### Demo ossrf-nmos-api
-This example showcases the creation of one video/raw receiver and two video/raw senders, both on the NMOS and GStreamer sides. The receiver can be connected to either sender, allowing you to observe the different outputs. 
-While it is possible to create NMOS audio resources, GStreamer support for audio is not yet implemented. 
+
+This example showcases the creation of one video/raw receiver and two video/raw senders, both on the NMOS and GStreamer sides. The receiver can be connected to either sender, allowing you to observe the different outputs.
+While it is possible to create NMOS audio resources, GStreamer support for audio is not yet implemented.
+
 #### Configuration file
+
 Open `cpp/demos/ossrf-nmos-api/config/nmos_config.json` and adjust the following parameters:
 
 - `host_addresses`
@@ -114,12 +117,12 @@ Open `cpp/demos/ossrf-nmos-api/config/nmos_config.json` and adjust the following
 - `system_address`
 
   This must be the address of the primary data interface.
+
   ***
 
 #### To run:
 
-  `./build/Debug/cpp/demos/ossrf-nmos-api/ossrf-nmos-api -f ./cpp/demos/ossrf-nmos-api/config/nmos_config.json`
-
+`./build/Debug/cpp/demos/ossrf-nmos-api/ossrf-nmos-api -f ./cpp/demos/ossrf-nmos-api/config/nmos_config.json`
 
 ## Build Container and Code simultaneously
 

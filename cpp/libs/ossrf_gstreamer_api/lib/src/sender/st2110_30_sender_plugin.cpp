@@ -44,10 +44,10 @@ struct gst_st2110_30_sender_impl : gst_sender_plugin_t
         BST_CHECK_ASSIGN(pipeline_, bisect::gst::pipeline::create(NULL));
         auto* pipeline = pipeline_.get();
 
-        // Add pipeline pulsesrc (audio source)
-        auto* source = gst_element_factory_make("pulsesrc", NULL);
-        BST_ENFORCE(source != nullptr, "Failed creating GStreamer element pulsesrc");
-        BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), source), "Failed adding pulsesrc to the pipeline");
+        // Add pipeline audiotestsrc (audio source)
+        auto* source = gst_element_factory_make("audiotestsrc", NULL);
+        BST_ENFORCE(source != nullptr, "Failed creating GStreamer element audiotestsrc");
+        BST_ENFORCE(gst_bin_add(GST_BIN(pipeline), source), "Failed adding audiotestsrc to the pipeline");
 
         // Add pipeline queue1
         auto* queue1 = gst_element_factory_make("queue", NULL);
