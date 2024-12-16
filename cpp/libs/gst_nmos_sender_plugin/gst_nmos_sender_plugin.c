@@ -37,6 +37,10 @@ typedef struct _GstNmossender
     GstBin parent;
     GstElement* payloader;
     GstElement* udpsink;
+    gchar* source_address;
+    gchar* interface_name;
+    gchar* destination_address;
+    gchar* destination_port;
 } GstNmossender;
 
 typedef struct _GstNmossenderClass
@@ -56,21 +60,146 @@ static GstStaticPadTemplate sink_template =
                                             "height=(int)[ 16, 2160 ], "
                                             "framerate=(fraction)[ 0/1, 120/1 ]"));
 
+static void gst_nmossender_set_property(GObject* object, guint property_id, const GValue* value, GParamSpec* pspec)
+{
+    GstNmossender* self = GST_NMOSSENDER(object);
+
+    switch(property_id)
+    {
+    case 1: // source-address property
+        g_free(self->source_address);
+        self->source_address = g_value_dup_string(value);
+        g_object_set(G_OBJECT(self->udpsink), "host", self->source_address, NULL);
+        break;
+
+    case 2: // interface-name property
+        g_free(self->interface_name);
+        self->interface_name = g_value_dup_string(value);
+        g_object_set(G_OBJECT(self->udpsink), "sync", TRUE, "bind-address", self->interface_name, NULL);
+        break;
+
+    case 3: // destination-address property
+        g_free(self->destination_address);
+        self->destination_address = g_value_dup_string(value);
+        g_object_set(G_OBJECT(self->udpsink), "host", self->destination_address, NULL);
+        break;
+
+    case 4: // destination-port property
+        g_free(self->destination_port);
+        self->destination_port = g_value_dup_string(value);
+        g_object_set(G_OBJECT(self->udpsink), "port", atoi(self->destination_port), NULL);
+        break;
+
+    default: G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec); break;
+    }
+}
+
+static void gst_nmossender_get_property(GObject* object, guint property_id, GValue* value, GParamSpec* pspec)
+{
+    GstNmossender* self = GST_NMOSSENDER(object);
+
+    switch(property_id)
+    {
+    case 1: g_value_set_string(value, self->source_address); break;
+
+    case 2: g_value_set_string(value, self->interface_name); break;
+
+    case 3: g_value_set_string(value, self->destination_address); break;
+
+    case 4: g_value_set_string(value, self->destination_port); break;
+
+    default: G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec); break;
+    }
+}
+
+static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, GstStateChange transition)
+{
+    GstStateChangeReturn ret;
+    GstNmossender* self = GST_NMOSSENDER(element);
+
+    switch(transition)
+    {
+    case GST_STATE_CHANGE_NULL_TO_READY: {
+        // Example of using the nmos_client_create function
+        const char* config_location =
+            "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/ossrf-nmos-api/config/nmos_config.json";
+
+        GST_INFO_OBJECT(self, "Initializing NMOS client...");
+        // FIX ME: change inner workings of plugin
+        nmos_client_t* client = nmos_client_create(config_location);
+        if(client)
+        {
+            nmos_client_add_device(client, config_location);
+            nmos_client_add_sender(client);
+            nmos_client_add_receiver(client);
+            nmos_client_remove_sender(client);
+            nmos_client_remove_receiver(client);
+            GST_INFO_OBJECT(self, "NMOS client initialized successfully.");
+        }
+        else
+        {
+            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client.");
+        }
+    }
+    break;
+
+    default: break;
+    }
+
+    // This is needed to work ¯\_(ツ)_/¯
+    ret = GST_ELEMENT_CLASS(gst_nmossender_parent_class)->change_state(element, transition);
+
+    return ret;
+}
+
 /* Class initialization */
 static void gst_nmossender_class_init(GstNmossenderClass* klass)
 {
+    GObjectClass* object_class     = G_OBJECT_CLASS(klass);
     GstElementClass* element_class = GST_ELEMENT_CLASS(klass);
 
     gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&sink_template));
 
+    object_class->set_property = gst_nmossender_set_property;
+    object_class->get_property = gst_nmossender_get_property;
+
+    g_object_class_install_property(G_OBJECT_CLASS(klass), 1,
+                                    g_param_spec_string("source-address", "Source Address",
+                                                        "The address of the source (default: 127.0.0.1)", "127.0.0.1",
+                                                        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+    g_object_class_install_property(G_OBJECT_CLASS(klass), 2,
+                                    g_param_spec_string("interface-name", "Interface Name",
+                                                        "Name of the interface (default: wlp1s0)", "wlp1s0",
+                                                        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+    g_object_class_install_property(G_OBJECT_CLASS(klass), 3,
+                                    g_param_spec_string("destination-address", "Destination Address",
+                                                        "The address of the destination (default: 127.0.0.1)",
+                                                        "127.0.0.1", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+    g_object_class_install_property(G_OBJECT_CLASS(klass), 4,
+                                    g_param_spec_string("destination-port", "Destination Port",
+                                                        "Port of the destination (default: 5004)", "5004",
+                                                        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
     gst_element_class_set_static_metadata(element_class, "NMOS Sender", "Sink/Network",
                                           "Processes raw video and sends it over RTP and UDP to NMOS client",
-                                          "Luís Ferreira <luis.ferreira@bisect.pt>");
+                                          "Luis Ferreira <luis.ferreira@bisect.pt>");
+
+    element_class->change_state = gst_nmossender_change_state;
 }
 
 /* Object initialization */
 static void gst_nmossender_init(GstNmossender* self)
 {
+
+    /* Set default property values */
+    self->source_address      = g_strdup("127.0.0.1");
+    self->interface_name      = g_strdup("wlp1s0");
+    self->destination_address = g_strdup("127.0.0.1");
+    self->destination_port    = g_strdup("5004");
+
     /* Create internal elements */
     self->payloader = gst_element_factory_make("rtpvrawpay", "payloader");
     self->udpsink   = gst_element_factory_make("udpsink", "udpsink");
@@ -81,26 +210,8 @@ static void gst_nmossender_init(GstNmossender* self)
         return;
     }
 
-    // Example of using the nmos_client_create function
-    const char* config_location =
-        "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/ossrf-nmos-api/config/nmos_config.json";
-
-    nmos_client_t* client = nmos_client_create(config_location);
-    if(client)
-    {
-        nmos_client_add_device(client, config_location);
-        nmos_client_add_sender(client);
-        nmos_client_add_receiver(client);
-        nmos_client_remove_sender(client);
-        nmos_client_remove_receiver(client);
-    }
-    else
-    {
-        // Handle error
-    }
-
     /* Configure udpsink properties */
-    g_object_set(G_OBJECT(self->udpsink), "host", "127.0.0.1", "port", 9999, NULL);
+    g_object_set(G_OBJECT(self->udpsink), "host", self->destination_address, self->destination_port, 9999, NULL);
 
     /* Add elements to the bin and link them */
     gst_bin_add_many(GST_BIN(self), self->payloader, self->udpsink, NULL);
