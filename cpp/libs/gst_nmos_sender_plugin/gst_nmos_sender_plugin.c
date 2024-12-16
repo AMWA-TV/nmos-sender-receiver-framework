@@ -22,6 +22,7 @@
 
 #include <gst/gst.h>
 #include <gst/gstpad.h>
+#include <ossrf_c_nmos_api.h>
 
 GST_DEBUG_CATEGORY_STATIC(gst_nmossender_debug_category);
 #define GST_CAT_DEFAULT gst_nmossender_debug_category
@@ -44,7 +45,7 @@ typedef struct _GstNmossenderClass
 } GstNmossenderClass;
 
 G_DEFINE_TYPE_WITH_CODE(GstNmossender, gst_nmossender, GST_TYPE_BIN,
-                        GST_DEBUG_CATEGORY_INIT(gst_nmossender_debug_category, "nmossender", 0, "NMOS Sender Plugin"));
+                        GST_DEBUG_CATEGORY_INIT(gst_nmossender_debug_category, "nmossender", 0, "NMOS Sender Plugin"))
 
 /* Pad template */
 static GstStaticPadTemplate sink_template =
@@ -78,6 +79,24 @@ static void gst_nmossender_init(GstNmossender* self)
     {
         GST_ERROR_OBJECT(self, "Failed to create internal elements: payloader or udpsink");
         return;
+    }
+
+    // Example of using the nmos_client_create function
+    const char* config_location =
+        "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/ossrf-nmos-api/config/nmos_config.json";
+
+    nmos_client_t* client = nmos_client_create(config_location);
+    if(client)
+    {
+        nmos_client_add_device(client, config_location);
+        nmos_client_add_sender(client);
+        nmos_client_add_receiver(client);
+        nmos_client_remove_sender(client);
+        nmos_client_remove_receiver(client);
+    }
+    else
+    {
+        // Handle error
     }
 
     /* Configure udpsink properties */
