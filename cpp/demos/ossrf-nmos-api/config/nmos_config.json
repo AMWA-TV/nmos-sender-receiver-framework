@@ -5,7 +5,7 @@
             "label": "BISECT OSSRF Node",
             "description": "BISECT OSSRF node",
             "host_addresses": [
-                "192.168.1.85"
+                "192.168.88.92"
             ],
             "interfaces": [
                 {
@@ -24,10 +24,10 @@
                     "locked": true
                 }
             ],
-            "registry_address": "192.168.1.85",
+            "registry_address": "192.168.88.92",
             "registry_version": "v1.3",
             "registration_port": 8010,
-            "system_address": "192.168.1.85",
+            "system_address": "192.168.88.92",
             "system_version": "v1.0",
             "system_port": 8010
         }
@@ -44,7 +44,7 @@
             "description": "BISECT OSSRF receiver video",
             "network": {
                 "primary": {
-                    "interface_address": "192.168.1.85",
+                    "interface_address": "192.168.88.92",
                     "interface_name": "wlp1s0"
                 }
             },
@@ -58,7 +58,7 @@
             "description": "BISECT OSSRF receiver audio",
             "network": {
                 "primary": {
-                    "interface_address": "192.168.1.85",
+                    "interface_address": "192.168.88.92",
                     "interface_name": "wlp1s0"
                 }
             },
@@ -74,9 +74,9 @@
             "description": "BISECT OSSRF sender video",
             "network": {
                 "primary": {
-                    "source_address": "192.168.1.85",
+                    "source_address": "192.168.88.92",
                     "interface_name": "wlp1s0",
-                    "destination_address": "239.10.10.10",
+                    "destination_address": "192.168.88.92",
                     "destination_port": 5004
                 }
             },
@@ -99,9 +99,9 @@
             "description": "BISECT OSSRF sender audio",
             "network": {
                 "primary": {
-                    "source_address": "192.168.1.85",
+                    "source_address": "192.168.88.92",
                     "interface_name": "wlp1s0",
-                    "destination_address": "239.10.10.11",
+                    "destination_address": "192.168.88.92",
                     "destination_port": 5005
                 }
             },

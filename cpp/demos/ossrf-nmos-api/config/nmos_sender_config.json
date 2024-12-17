@@ -1,0 +1,25 @@
+        {
+            "id": "e543a2c1-d6a2-47f5-8d14-296bb6714ef2",
+            "label": "BISECT OSSRF sender video",
+            "description": "BISECT OSSRF sender video",
+            "network": {
+                "primary": {
+                    "source_address": "192.168.88.92",
+                    "interface_name": "wlp1s0",
+                    "destination_address": "192.168.88.92",
+                    "destination_port": 5004
+                }
+            },
+            "payload_type": 97,
+            "media_type": "video/raw",
+            "media": {
+                "width": 640,
+                "height": 480,
+                "frame_rate": {
+                    "num": 50,
+                    "den": 1
+                },
+                "sampling": "YCbCr-4:2:2",
+                "structure": "progressive"
+            }
+        }

@@ -1,0 +1,72 @@
+{
+    "node": {
+        "id": "d5504cd1-fe68-489d-99d4-20d3f075f062",
+        "configuration": {
+            "label": "BISECT OSSRF Node2",
+            "description": "BISECT OSSRF node2",
+            "host_addresses": [
+                "192.168.88.92"
+            ],
+            "interfaces": [
+                {
+                    "chassis_id": "c8-94-02-f7-3e-eb",
+                    "name": "wlp1s0",
+                    "port_id": "00-e0-4c-68-01-8d"
+                }
+            ],
+            "clocks": [
+                {
+                    "name": "clk0",
+                    "ref_type": "ptp",
+                    "traceable": false,
+                    "version": "IEEE1588-2008",
+                    "gmid": "00-20-fc-ff-fe-35-9c-25",
+                    "locked": true
+                }
+            ],
+            "registry_address": "192.168.88.92",
+            "registry_version": "v1.3",
+            "registration_port": 8010,
+            "system_address": "192.168.88.92",
+            "system_version": "v1.0",
+            "system_port": 8010,
+            "http_port": 5113
+        }
+    },
+    "device": {
+        "id": "e92e628b-7421-4723-9fb9-c1f3b38af9d3",
+        "label": "OSSRF Device2",
+        "description": "OSSRF Device2"
+    },
+    "receivers": [
+        {
+            "id": "db9f46cf-2414-4e25-b6c6-2078159857f9",
+            "label": "BISECT OSSRF receiver video",
+            "description": "BISECT OSSRF receiver video",
+            "network": {
+                "primary": {
+                    "interface_address": "192.168.88.92",
+                    "interface_name": "wlp1s0"
+                }
+            },
+            "capabilities": [
+                "video/raw"
+            ]
+        },
+        {
+            "id": "15319770-0fc3-41c9-8985-aab2983d9ed0",
+            "label": "BISECT OSSRF receiver audio",
+            "description": "BISECT OSSRF receiver audio",
+            "network": {
+                "primary": {
+                    "interface_address": "192.168.88.92",
+                    "interface_name": "wlp1s0"
+                }
+            },
+            "capabilities": [
+                "audio/L24"
+            ]
+        }
+    ],
+    "senders": []
+}
