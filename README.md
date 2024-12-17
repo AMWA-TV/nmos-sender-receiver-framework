@@ -127,3 +127,6 @@ Open `cpp/demos/ossrf-nmos-api/config/nmos_config.json` and adjust the following
 ## Build Container and Code simultaneously
 
     ./scripts/build-inside-container.sh
+
+## Notes
+At the moment, the gstreamer plugins with NMOS (nmossender and nmosreceiver)  aren't 100% functional, being more of a proof of concept that will be refined in the near future.

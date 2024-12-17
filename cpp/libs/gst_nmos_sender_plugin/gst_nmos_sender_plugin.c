@@ -20,9 +20,9 @@
  * Boston, MA 02110-1335, USA.
  */
 
+#include "ossrf_c_nmos_api.h"
 #include <gst/gst.h>
 #include <gst/gstpad.h>
-#include <ossrf_c_nmos_api.h>
 
 GST_DEBUG_CATEGORY_STATIC(gst_nmossender_debug_category);
 #define GST_CAT_DEFAULT gst_nmossender_debug_category
@@ -41,6 +41,10 @@ typedef struct _GstNmossender
     gchar* interface_name;
     gchar* destination_address;
     gchar* destination_port;
+    GstCaps* caps;
+    gint width;
+    gint height;
+    const gchar* format;
 } GstNmossender;
 
 typedef struct _GstNmossenderClass
@@ -55,36 +59,34 @@ G_DEFINE_TYPE_WITH_CODE(GstNmossender, gst_nmossender, GST_TYPE_BIN,
 static GstStaticPadTemplate sink_template =
     GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_REQUEST,
                             GST_STATIC_CAPS("video/x-raw, "
-                                            "format=(string){ I420, NV12, RGB }, "
-                                            "width=(int)[ 16, 4096 ], "
-                                            "height=(int)[ 16, 2160 ], "
-                                            "framerate=(fraction)[ 0/1, 120/1 ]"));
+                                            "format=(string){ I420, NV12, RGB } "));
 
+/* Set properties so element variables can change depending on them */
 static void gst_nmossender_set_property(GObject* object, guint property_id, const GValue* value, GParamSpec* pspec)
 {
     GstNmossender* self = GST_NMOSSENDER(object);
 
     switch(property_id)
     {
-    case 1: // source-address property
+    case 1:
         g_free(self->source_address);
         self->source_address = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink), "host", self->source_address, NULL);
         break;
 
-    case 2: // interface-name property
+    case 2:
         g_free(self->interface_name);
         self->interface_name = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink), "sync", TRUE, "bind-address", self->interface_name, NULL);
         break;
 
-    case 3: // destination-address property
+    case 3:
         g_free(self->destination_address);
         self->destination_address = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink), "host", self->destination_address, NULL);
         break;
 
-    case 4: // destination-port property
+    case 4:
         g_free(self->destination_port);
         self->destination_port = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink), "port", atoi(self->destination_port), NULL);
@@ -112,6 +114,85 @@ static void gst_nmossender_get_property(GObject* object, guint property_id, GVal
     }
 }
 
+/* Not needed for now:
+Auxiliary function to validate if caps are compatible */
+// static gboolean gst_nmossender_validate_caps(GstCaps* caps)
+// {
+//     gboolean valid = FALSE;
+
+//     for(guint i = 0; i < gst_caps_get_size(caps); i++)
+//     {
+//         GstStructure* structure = gst_caps_get_structure(caps, i);
+
+//         const gchar* media_type = gst_structure_get_name(structure);
+//         if(g_strcmp0(media_type, "video/x-raw") == 0)
+//         {
+//             valid = TRUE;
+//             break;
+//         }
+//     }
+
+//     return valid;
+// }
+
+/* Event handler for the sink pad */
+static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEvent* event)
+{
+    GstNmossender* self = GST_NMOSSENDER(parent);
+
+    switch(GST_EVENT_TYPE(event))
+    {
+    case GST_EVENT_CAPS: {
+        GstCaps* caps = NULL;
+        gst_event_parse_caps(event, &caps);
+
+        if(caps)
+        {
+            gchar* caps_str = gst_caps_to_string(caps);
+            g_print("\n\nReceived CAPS from upstream: %s\n", caps_str);
+
+            for(guint i = 0; i < gst_caps_get_size(caps); i++)
+            {
+                const GstStructure* structure = gst_caps_get_structure(caps, i);
+                // Convert the structure to a string
+                gchar* structure_str = gst_structure_to_string(structure);
+                GST_INFO_OBJECT(self, "Caps Structure %u: %s", i, structure_str);
+                g_free(structure_str);
+
+                // If you want to retrieve individual fields (e.g., width, height, format)
+                gint width, height;
+                const gchar* format;
+                if(gst_structure_get_int(structure, "width", &width))
+                {
+                    self->width = width;
+                }
+                if(gst_structure_get_int(structure, "height", &height))
+                {
+                    self->height = height;
+                }
+                if((format = gst_structure_get_string(structure, "format")))
+                {
+                    self->format = format;
+                }
+            }
+
+            g_free(caps_str);
+        }
+        else
+        {
+            GST_WARNING_OBJECT(self, "No caps found in CAPS event");
+        }
+        break;
+    }
+    default: break;
+    }
+
+    // g_print("Width: %d, Height: %d, Format: %s\n", self->width, self->height, self->format);
+    /* Pass the event downstream */
+    return gst_pad_event_default(pad, parent, event);
+}
+
+/* State Change so it doesn't boot NMOS without pipeline being set to playing */
 static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, GstStateChange transition)
 {
     GstStateChangeReturn ret;
@@ -120,20 +201,22 @@ static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, Gst
     switch(transition)
     {
     case GST_STATE_CHANGE_NULL_TO_READY: {
-        // Example of using the nmos_client_create function
+        // FIX ME: Example of using the nmos_client_create function, need to
+        // change it later so it isnt hardcoded and is instead a property
         const char* config_location =
-            "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/ossrf-nmos-api/config/nmos_config.json";
+            "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/ossrf-nmos-api/config/nmos_plugin_config.json";
 
         GST_INFO_OBJECT(self, "Initializing NMOS client...");
+
         // FIX ME: change inner workings of plugin
         nmos_client_t* client = nmos_client_create(config_location);
         if(client)
         {
             nmos_client_add_device(client, config_location);
             nmos_client_add_sender(client);
-            nmos_client_add_receiver(client);
-            nmos_client_remove_sender(client);
-            nmos_client_remove_receiver(client);
+            // nmos_client_add_receiver(client);
+            // nmos_client_remove_sender(client);
+            // nmos_client_remove_receiver(client);
             GST_INFO_OBJECT(self, "NMOS client initialized successfully.");
         }
         else
@@ -180,7 +263,7 @@ static void gst_nmossender_class_init(GstNmossenderClass* klass)
 
     g_object_class_install_property(G_OBJECT_CLASS(klass), 4,
                                     g_param_spec_string("destination-port", "Destination Port",
-                                                        "Port of the destination (default: 5004)", "5004",
+                                                        "Port of the destination (default: 9999)", "9999",
                                                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     gst_element_class_set_static_metadata(element_class, "NMOS Sender", "Sink/Network",
@@ -193,14 +276,6 @@ static void gst_nmossender_class_init(GstNmossenderClass* klass)
 /* Object initialization */
 static void gst_nmossender_init(GstNmossender* self)
 {
-
-    /* Set default property values */
-    self->source_address      = g_strdup("127.0.0.1");
-    self->interface_name      = g_strdup("wlp1s0");
-    self->destination_address = g_strdup("127.0.0.1");
-    self->destination_port    = g_strdup("5004");
-
-    /* Create internal elements */
     self->payloader = gst_element_factory_make("rtpvrawpay", "payloader");
     self->udpsink   = gst_element_factory_make("udpsink", "udpsink");
 
@@ -210,28 +285,17 @@ static void gst_nmossender_init(GstNmossender* self)
         return;
     }
 
-    /* Configure udpsink properties */
-    g_object_set(G_OBJECT(self->udpsink), "host", self->destination_address, self->destination_port, 9999, NULL);
+    // default udpsink properties
+    g_object_set(G_OBJECT(self->udpsink), "host", "127.0.0.1", "port", 9999, NULL);
 
-    /* Add elements to the bin and link them */
+    // Add elements to the bin
     gst_bin_add_many(GST_BIN(self), self->payloader, self->udpsink, NULL);
+    gst_element_link(self->payloader, self->udpsink);
 
-    if(!gst_element_link(self->payloader, self->udpsink))
-    {
-        GST_ERROR_OBJECT(self, "Failed to link payloader to udpsink");
-        return;
-    }
-
-    /* Get static pads from internal elements */
+    // create and configure the sink pad
     GstPad* payloader_sinkpad = gst_element_get_static_pad(self->payloader, "sink");
-    if(!payloader_sinkpad)
-    {
-        GST_ERROR_OBJECT(self, "Failed to get static sink pad from payloader");
-        return;
-    }
+    GstPad* sink_ghost_pad    = gst_ghost_pad_new("sink", payloader_sinkpad);
 
-    /* Create ghost pads and add them to the nmossender element */
-    GstPad* sink_ghost_pad = gst_ghost_pad_new("sink", payloader_sinkpad);
     if(!sink_ghost_pad)
     {
         GST_ERROR_OBJECT(self, "Failed to create ghost pad for sink");
@@ -239,10 +303,12 @@ static void gst_nmossender_init(GstNmossender* self)
         return;
     }
 
-    /* Add ghost pads to the nmossender element */
+    // added ghost pad to the element to enable
+    // connectivity between layers of element
+    gst_pad_set_event_function(sink_ghost_pad, gst_nmossender_sink_event);
+
     gst_element_add_pad(GST_ELEMENT(self), sink_ghost_pad);
 
-    /* Unref the original static pads since they are no longer needed */
     gst_object_unref(payloader_sinkpad);
 }
 
@@ -252,10 +318,10 @@ static gboolean plugin_init(GstPlugin* plugin)
 }
 
 #define VERSION "0.1"
-#define PACKAGE "gst-plugins-ugly"
-#define PACKAGE_NAME "GStreamer Ugly Plugins (Ubuntu)"
-#define GST_PACKAGE_ORIGIN "http://bisect.pt/"
-#define GST_PACKAGE_LICENSE "LGPL"
+#define PACKAGE "gst-nmos-sender-plugin"
+#define PACKAGE_NAME "AMWA NMOS Sender and Receiver Framework Plugins"
+#define GST_PACKAGE_ORIGIN "https://www.amwa.tv/"
+#define GST_PACKAGE_LICENSE "Apache-2.0"
 
 GST_PLUGIN_DEFINE(GST_VERSION_MAJOR, GST_VERSION_MINOR, nmossender, "Plugin to send to NMOS application video stream",
                   plugin_init, VERSION, GST_PACKAGE_LICENSE, PACKAGE_NAME, GST_PACKAGE_ORIGIN)
