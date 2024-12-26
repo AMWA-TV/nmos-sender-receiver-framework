@@ -37,7 +37,9 @@ GST_DEBUG_CATEGORY_STATIC(gst_nmossender_debug_category);
 typedef struct _GstNmossender
 {
     GstBin parent;
-    GstElement* payloader;
+    GstElement* queue;
+    GstElement* video_payloader;
+    GstElement* audio_payloader;
     GstElement* udpsink;
     ossrf::nmos_client_uptr client;
     GstCaps* caps;
@@ -69,10 +71,14 @@ G_DEFINE_TYPE_WITH_CODE(GstNmossender, gst_nmossender, GST_TYPE_BIN,
                         GST_DEBUG_CATEGORY_INIT(gst_nmossender_debug_category, "nmossender", 0, "NMOS Sender Plugin"))
 
 /* Pad template */
-static GstStaticPadTemplate sink_template =
-    GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_REQUEST,
-                            GST_STATIC_CAPS("video/x-raw, "
-                                            "format=(string){ I420, NV12, RGB } "));
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_REQUEST,
+                                                                    GST_STATIC_CAPS("video/x-raw, "
+                                                                                    "format=(string){ UYVP }; "
+                                                                                    "audio/x-raw, "
+                                                                                    "format=(string)S24BE, "
+                                                                                    "layout=(string)interleaved, "
+                                                                                    "rate=(int)[ 1, 2147483647 ], "
+                                                                                    "channels=(int)[ 1, 2147483647 ]"));
 
 /* Set properties so element variables can change depending on them */
 static void gst_nmossender_set_property(GObject* object, guint property_id, const GValue* value, GParamSpec* pspec)
@@ -81,67 +87,40 @@ static void gst_nmossender_set_property(GObject* object, guint property_id, cons
 
     switch(static_cast<PropertyId>(property_id))
     {
-    case PropertyId::NodeId:
-        g_free(self->config.node.id);
-        self->config.node.id = g_value_dup_string(value);
-        break;
+    case PropertyId::NodeId: self->config.node.id = g_value_dup_string(value); break;
 
     case PropertyId::NodeConfigFileLocation:
-        g_free(self->config.node.configuration_location);
         self->config.node.configuration_location = g_value_dup_string(value);
         break;
 
-    case PropertyId::DeviceId:
-        g_free(self->config.device.id);
-        self->config.device.id = g_value_dup_string(value);
-        break;
+    case PropertyId::DeviceId: self->config.device.id = g_value_dup_string(value); break;
 
-    case PropertyId::DeviceLabel:
-        g_free(self->config.device.label);
-        self->config.device.label = g_value_dup_string(value);
-        break;
+    case PropertyId::DeviceLabel: self->config.device.label = g_value_dup_string(value); break;
 
-    case PropertyId::DeviceDescription:
-        g_free(self->config.device.description);
-        self->config.device.description = g_value_dup_string(value);
-        break;
+    case PropertyId::DeviceDescription: self->config.device.description = g_value_dup_string(value); break;
 
-    case PropertyId::SenderId:
-        g_free(self->config.sender_id);
-        self->config.sender_id = g_value_dup_string(value);
-        break;
+    case PropertyId::SenderId: self->config.sender_id = g_value_dup_string(value); break;
 
-    case PropertyId::SenderLabel:
-        g_free(self->config.sender_label);
-        self->config.sender_label = g_value_dup_string(value);
-        break;
+    case PropertyId::SenderLabel: self->config.sender_label = g_value_dup_string(value); break;
 
-    case PropertyId::SenderDescription:
-        g_free(self->config.sender_description);
-        self->config.sender_description = g_value_dup_string(value);
-        break;
+    case PropertyId::SenderDescription: self->config.sender_description = g_value_dup_string(value); break;
 
-    case PropertyId::SourceAddress:
-        g_free(self->config.network.source_address);
-        self->config.network.source_address = g_value_dup_string(value);
-        break;
+    case PropertyId::SourceAddress: self->config.network.source_address = g_value_dup_string(value); break;
 
     case PropertyId::InterfaceName:
-        g_free(self->config.network.interface_name);
         self->config.network.interface_name = g_value_dup_string(value);
-        g_object_set(G_OBJECT(self->udpsink), "bind_address", self->config.network.interface_name, NULL);
+        g_object_set(G_OBJECT(self->udpsink), "bind_address", self->config.network.interface_name.c_str(), NULL);
         break;
 
     case PropertyId::DestinationAddress:
-        g_free(self->config.network.destination_address);
         self->config.network.destination_address = g_value_dup_string(value);
-        g_object_set(G_OBJECT(self->udpsink), "host", self->config.network.destination_address, NULL);
+        g_print("\n\n\n\n\n%s", self->config.network.destination_address.c_str());
+        g_object_set(G_OBJECT(self->udpsink), "host", self->config.network.destination_address.c_str(), NULL);
         break;
 
     case PropertyId::DestinationPort:
-        g_free(self->config.network.destination_port);
         self->config.network.destination_port = g_value_dup_string(value);
-        g_object_set(G_OBJECT(self->udpsink), "port", atoi(self->config.network.destination_port), NULL);
+        g_object_set(G_OBJECT(self->udpsink), "port", atoi(self->config.network.destination_port.c_str()), NULL);
         break;
 
     default: G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec); break;
@@ -154,18 +133,22 @@ static void gst_nmossender_get_property(GObject* object, guint property_id, GVal
 
     switch(static_cast<PropertyId>(property_id))
     {
-    case PropertyId::NodeId: g_value_set_string(value, self->config.node.id); break;
-    case PropertyId::NodeConfigFileLocation: g_value_set_string(value, self->config.node.configuration_location); break;
-    case PropertyId::DeviceId: g_value_set_string(value, self->config.device.id); break;
-    case PropertyId::DeviceLabel: g_value_set_string(value, self->config.device.label); break;
-    case PropertyId::DeviceDescription: g_value_set_string(value, self->config.device.description); break;
-    case PropertyId::SenderId: g_value_set_string(value, self->config.sender_id); break;
-    case PropertyId::SenderLabel: g_value_set_string(value, self->config.sender_label); break;
-    case PropertyId::SenderDescription: g_value_set_string(value, self->config.sender_description); break;
-    case PropertyId::SourceAddress: g_value_set_string(value, self->config.network.source_address); break;
-    case PropertyId::InterfaceName: g_value_set_string(value, self->config.network.interface_name); break;
-    case PropertyId::DestinationAddress: g_value_set_string(value, self->config.network.destination_address); break;
-    case PropertyId::DestinationPort: g_value_set_string(value, self->config.network.destination_port); break;
+    case PropertyId::NodeId: g_value_set_string(value, self->config.node.id.c_str()); break;
+    case PropertyId::NodeConfigFileLocation:
+        g_value_set_string(value, self->config.node.configuration_location.c_str());
+        break;
+    case PropertyId::DeviceId: g_value_set_string(value, self->config.device.id.c_str()); break;
+    case PropertyId::DeviceLabel: g_value_set_string(value, self->config.device.label.c_str()); break;
+    case PropertyId::DeviceDescription: g_value_set_string(value, self->config.device.description.c_str()); break;
+    case PropertyId::SenderId: g_value_set_string(value, self->config.sender_id.c_str()); break;
+    case PropertyId::SenderLabel: g_value_set_string(value, self->config.sender_label.c_str()); break;
+    case PropertyId::SenderDescription: g_value_set_string(value, self->config.sender_description.c_str()); break;
+    case PropertyId::SourceAddress: g_value_set_string(value, self->config.network.source_address.c_str()); break;
+    case PropertyId::InterfaceName: g_value_set_string(value, self->config.network.interface_name.c_str()); break;
+    case PropertyId::DestinationAddress:
+        g_value_set_string(value, self->config.network.destination_address.c_str());
+        break;
+    case PropertyId::DestinationPort: g_value_set_string(value, self->config.network.destination_port.c_str()); break;
 
     default: G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec); break;
     }
@@ -179,38 +162,104 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
     switch(GST_EVENT_TYPE(event))
     {
     case GST_EVENT_CAPS: {
-        GstCaps* caps = NULL;
+        GstCaps* caps = nullptr;
         gst_event_parse_caps(event, &caps);
 
         if(caps)
         {
             gchar* caps_str = gst_caps_to_string(caps);
-            g_print("\n\nReceived CAPS from upstream: %s\n", caps_str);
+            // DEBUG
+            // g_print("\n\nReceived CAPS from upstream: %s\n", caps_str);
 
-            for(guint i = 0; i < gst_caps_get_size(caps); i++)
+            const GstStructure* structure = gst_caps_get_structure(caps, 0);
+            std::string media_type        = gst_structure_get_name(structure);
+
+            if(media_type == "audio/x-raw")
             {
-                const GstStructure* structure = gst_caps_get_structure(caps, i);
-                // Convert the structure to a string
-                gchar* structure_str = gst_structure_to_string(structure);
-                GST_INFO_OBJECT(self, "Caps Structure %u: %s", i, structure_str);
-                g_free(structure_str);
+                g_print("\n\n\n\n\n\n\n\n\n\n\n");
+                // DEBUG
+                // g_print("Audio caps detected\n");
+                // GST_INFO_OBJECT(self, "Audio caps detected");
+                //
+                if(!gst_element_link(self->queue, self->audio_payloader))
+                {
+                    GST_ERROR_OBJECT(self, "Failed to link queue to audio_payloader");
+                    return false;
+                }
+                if(!gst_element_link(self->audio_payloader, self->udpsink))
+                {
+                    GST_ERROR_OBJECT(self, "Failed to link audio_payloader to udpsink");
+                    return false;
+                }
+                self->caps            = gst_caps_ref(caps);
+                self->config.is_audio = true;
+                for(guint i = 0; i < gst_caps_get_size(caps); i++)
+                {
+                    gint rate, channels;
+                    const gchar* format;
+                    if(gst_structure_get_int(structure, "rate", &rate))
+                    {
+                        self->config.audio_sender_fields.sampling_rate = rate;
+                    }
+                    if(gst_structure_get_int(structure, "channels", &channels))
+                    {
+                        self->config.audio_sender_fields.number_of_channels = channels;
+                    }
+                    if((format = gst_structure_get_string(structure, "format")))
+                    {
+                        self->config.audio_sender_fields.format = translate_audio_format(format);
+                    }
+                }
+                // DEBUG
+                // g_print("Rate: %d, Channels: %d, Format: %s\n", self->config.audio_sender_fields.sampling_rate,
+                //         self->config.audio_sender_fields.number_of_channels,
+                //         self->config.audio_sender_fields.format);
+            }
+            else if(media_type == "video/x-raw")
+            {
 
-                // FIXME: Need to retrieve other fields
-                gint width, height;
-                const gchar* format;
-                if(gst_structure_get_int(structure, "width", &width))
+                g_print("\n\n\n\n\n\n\n\n\n\n\n");
+                // DEBUG
+                // g_print("Video caps detected\n");
+                // GST_INFO_OBJECT(self, "Video caps detected");
+                //
+                if(!gst_element_link(self->queue, self->video_payloader))
                 {
-                    self->config.media.width = width;
+                    GST_ERROR_OBJECT(self, "Failed to link queue to video_payloader");
+                    return false;
                 }
-                if(gst_structure_get_int(structure, "height", &height))
+                if(!gst_element_link(self->video_payloader, self->udpsink))
                 {
-                    self->config.media.height = height;
+                    GST_ERROR_OBJECT(self, "Failed to link video_payloader to udpsink");
+                    return false;
                 }
-                if((format = gst_structure_get_string(structure, "format")))
+                self->caps            = gst_caps_ref(caps);
+                self->config.is_audio = false;
+                for(guint i = 0; i < gst_caps_get_size(caps); i++)
                 {
-                    g_free(self->config.media.sampling);
-                    self->config.media.sampling = g_strdup(format);
+                    gint width, height;
+                    const gchar* format;
+                    if(gst_structure_get_int(structure, "width", &width))
+                    {
+                        self->config.video_media_fields.width = width;
+                    }
+                    if(gst_structure_get_int(structure, "height", &height))
+                    {
+                        self->config.video_media_fields.height = height;
+                    }
+                    if((format = gst_structure_get_string(structure, "format")))
+                    {
+                        self->config.video_media_fields.sampling = translate_video_format(format);
+                    }
                 }
+
+                // DEBUG
+                // g_print("Width: %d, Height: %d, Format: %s\n", self->config.video_media_fields.width,
+                //         self->config.video_media_fields.height, self->config.video_media_fields.sampling);
+            }
+            else
+            {
+                GST_WARNING_OBJECT(self, "Unsupported media type: %s", media_type.c_str());
             }
 
             g_free(caps_str);
@@ -219,13 +268,11 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
         {
             GST_WARNING_OBJECT(self, "No caps found in CAPS event");
         }
+
         break;
     }
     default: break;
     }
-
-    g_print("Width: %d, Height: %d, Format: %s\n", self->config.media.width, self->config.media.height,
-            self->config.media.sampling);
     // Pass the event downstream
     return gst_pad_event_default(pad, parent, event);
 }
@@ -243,27 +290,44 @@ static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, Gst
 
     switch(transition)
     {
-    case GST_STATE_CHANGE_NULL_TO_READY: {
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING: {
 
-        const auto node_config_json   = create_node_config(self->config);
-        const auto device_config_json = create_device_config(self->config);
-        const auto sender_config_json = create_sender_config(self->config);
+        const auto node_config_json                         = create_node_config(self->config);
+        const auto device_config_json                       = create_device_config(self->config);
+        nlohmann::json_abi_v3_11_3::json sender_config_json = nullptr;
 
-        g_print("Node Configuration: %s\n", node_config_json.dump().c_str());
-        g_print("Device Configuration: %s\n", device_config_json.dump().c_str());
-        g_print("Sender Configuration: %s\n", sender_config_json.dump().c_str());
-
-        auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
-        if(result.has_value())
+        if(self->config.is_audio)
         {
-            self->client = std::move(result.value());
-            self->client->add_device(device_config_json.dump());
-            self->client->add_sender(self->config.device.id, sender_config_json.dump(), sender_activation_callback);
-            GST_INFO_OBJECT(self, "NMOS client initialized successfully.");
+            sender_config_json = create_audio_sender_config(self->config);
         }
         else
         {
-            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client.");
+            sender_config_json = create_video_sender_config(self->config);
+        }
+
+        // DEBUG
+        // g_print("Node Configuration: %s\n", node_config_json.dump().c_str());
+        // g_print("Device Configuration: %s\n", device_config_json.dump().c_str());
+        // g_print("Sender Configuration: %s\n", sender_config_json.dump().c_str());
+
+        auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
+        if(!result.has_value())
+        {
+            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. Node ID: %s", self->config.node.id.c_str());
+            return GST_STATE_CHANGE_FAILURE;
+        }
+
+        self->client = std::move(result.value());
+        if(!self->client->add_device(device_config_json.dump()))
+        {
+            GST_ERROR_OBJECT(self, "Failed to add device to NMOS client");
+            return GST_STATE_CHANGE_FAILURE;
+        }
+
+        if(!self->client->add_sender(self->config.device.id, sender_config_json.dump(), sender_activation_callback))
+        {
+            GST_ERROR_OBJECT(self, "Failed to add sender to NMOS client");
+            return GST_STATE_CHANGE_FAILURE;
         }
     }
     break;
@@ -330,41 +394,49 @@ static void gst_nmossender_class_init(GstNmossenderClass* klass)
 /* Object initialization */
 static void gst_nmossender_init(GstNmossender* self)
 {
-    self->payloader = gst_element_factory_make("rtpvrawpay", "payloader");
-    self->udpsink   = gst_element_factory_make("udpsink", "udpsink");
+    self->queue           = gst_element_factory_make("queue", NULL);
+    self->video_payloader = gst_element_factory_make("rtpvrawpay", NULL);
+    self->audio_payloader = gst_element_factory_make("rtpL24pay", NULL);
+    self->udpsink         = gst_element_factory_make("udpsink", NULL);
 
-    if(!self->payloader || !self->udpsink)
+    if(!self->queue || !self->video_payloader || !self->audio_payloader || !self->udpsink)
     {
-        GST_ERROR_OBJECT(self, "Failed to create internal elements: payloader or udpsink");
+        GST_ERROR_OBJECT(self,
+                         "Failed to create internal elements: queue or video_payloader or audio_playloader or udpsink");
         return;
     }
 
-    // default udpsink properties
+    // set properties
+    g_object_set(G_OBJECT(self->queue), "max-size-buffers", 1, NULL);
     g_object_set(G_OBJECT(self->udpsink), "host", "127.0.0.1", "port", 9999, NULL);
-    self->config = create_default_config_fields();
+    create_default_config_fields(&self->config);
 
-    // Add elements to the bin
-    gst_bin_add_many(GST_BIN(self), self->payloader, self->udpsink, NULL);
-    gst_element_link(self->payloader, self->udpsink);
+    gst_bin_add_many(GST_BIN(self), self->queue, self->video_payloader, self->audio_payloader, self->udpsink, NULL);
 
     // create and configure the sink pad
-    GstPad* payloader_sinkpad = gst_element_get_static_pad(self->payloader, "sink");
-    GstPad* sink_ghost_pad    = gst_ghost_pad_new("sink", payloader_sinkpad);
+    GstPad* queue_sinkpad = gst_element_get_static_pad(self->queue, "sink");
+    if(!queue_sinkpad)
+    {
+        GST_ERROR_OBJECT(self, "Failed to get static pad 'sink' from queue");
+        return;
+    }
+    GstPad* sink_ghost_pad = gst_ghost_pad_new("sink", queue_sinkpad);
+    gst_object_unref(queue_sinkpad);
 
     if(!sink_ghost_pad)
     {
         GST_ERROR_OBJECT(self, "Failed to create ghost pad for sink");
-        gst_object_unref(payloader_sinkpad);
         return;
     }
 
-    // added ghost pad to the element to enable
-    // connectivity between layers of element
     gst_pad_set_event_function(sink_ghost_pad, gst_nmossender_sink_event);
 
-    gst_element_add_pad(GST_ELEMENT(self), sink_ghost_pad);
-
-    gst_object_unref(payloader_sinkpad);
+    if(!gst_element_add_pad(GST_ELEMENT(self), sink_ghost_pad))
+    {
+        GST_ERROR_OBJECT(self, "Failed to add ghost pad to element; pad with same name might exist");
+        gst_object_unref(sink_ghost_pad);
+        return;
+    }
 }
 
 static gboolean plugin_init(GstPlugin* plugin)

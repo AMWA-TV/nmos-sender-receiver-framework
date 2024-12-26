@@ -9,45 +9,53 @@
 using namespace bisect;
 using json = nlohmann::json;
 
-config_fields_t create_default_config_fields()
+void create_default_config_fields(config_fields_t* config)
 {
-    config_fields_t config;
+    if(!config)
+    {
+        g_critical("Config pointer is NULL");
+        return;
+    }
 
     // Initialize node_fields_t
-    config.node.id = g_strdup("d5504cd1-fe68-489d-99d4-20d3f075f062");
-    config.node.configuration_location =
-        g_strdup("/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/config/nmos_plugin_node_config.json");
+    config->node.id = "d5504cd1-fe68-489d-99d4-20d3f075f062";
+    config->node.configuration_location =
+        "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/config/nmos_plugin_node_config.json";
 
     // Initialize device_fields_t
-    config.device.id          = g_strdup("e92e628b-7421-4723-9fb9-c1f3b38af9d3");
-    config.device.label       = g_strdup("OSSRF Device2");
-    config.device.description = g_strdup("OSSRF Device2");
+    config->device.id          = "e92e628b-7421-4723-9fb9-c1f3b38af9d3";
+    config->device.label       = "OSSRF Device2";
+    config->device.description = "OSSRF Device2";
 
-    // Initialize media_fields_t
-    config.media.width              = 640;
-    config.media.height             = 480;
-    config.media.frame_rate_num     = 50;
-    config.media.frame_rate_density = 1;
-    config.media.sampling           = g_strdup("YCbCr-4:2:2");
-    config.media.structure          = g_strdup("progressive");
+    // Initialize video_media_fields_t
+    config->video_media_fields.width          = 640;
+    config->video_media_fields.height         = 480;
+    config->video_media_fields.frame_rate_num = 50;
+    config->video_media_fields.frame_rate_den = 1;
+    config->video_media_fields.sampling       = "YCbCr-4:2:2";
+    config->video_media_fields.structure      = "progressive";
+
+    // Initialize audio_media_fields_t
+    config->audio_sender_fields.format             = "audio/L24";
+    config->audio_sender_fields.number_of_channels = 1;
+    config->audio_sender_fields.packet_time        = 1.000;
+    config->audio_sender_fields.sampling_rate      = 48000;
 
     // Initialize network_fields_t
-    config.network.source_address      = g_strdup("192.168.1.120");
-    config.network.interface_name      = g_strdup("wlp1s0");
-    config.network.destination_address = g_strdup("192.168.1.120");
-    config.network.destination_port    = g_strdup("5004");
+    config->network.source_address      = "192.168.1.120";
+    config->network.interface_name      = "wlp1s0";
+    config->network.destination_address = "192.168.1.120";
+    config->network.destination_port    = "9999";
 
     // Initialize config_fields_t
-    config.sender_id          = g_strdup("e543a2c1-d6a2-47f5-8d14-296bb6714ef2");
-    config.sender_label       = g_strdup("BISECT OSSRF sender video");
-    config.sender_description = g_strdup("BISECT OSSRF sender video");
-
-    return config;
+    config->sender_id          = "1c920570-e0b4-4637-b02c-26c9d4275c71";
+    config->sender_label       = "BISECT OSSRF Media Sender";
+    config->sender_description = "BISECT OSSRF Media Sender";
 }
 
 json create_node_config(config_fields_t& config)
 {
-    const std::string node_config_str = get_node_config(config.node.configuration_location);
+    const std::string node_config_str = get_node_config(config.node.configuration_location.data());
 
     // Parse the configuration into a JSON object
     json node_config = json::parse(node_config_str);
@@ -65,7 +73,31 @@ json create_device_config(config_fields_t& config)
     return device;
 }
 
-json create_sender_config(config_fields_t& config)
+json create_video_sender_config(config_fields_t& config)
+{
+    json sender = {
+        {"id", config.sender_id},
+        {"label", config.sender_label},
+        {"description", config.sender_description},
+        {"network",
+         {{"primary",
+           {{"source_address", config.network.source_address},
+            {"interface_name", config.network.interface_name},
+            {"destination_address", config.network.destination_address},
+            {"destination_port", config.network.destination_port}}}}},
+        {"payload_type", 97},
+        {"media_type", "video/raw"},
+        {"media",
+         {{"width", config.video_media_fields.width},
+          {"height", config.video_media_fields.height},
+          {"frame_rate",
+           {{"num", config.video_media_fields.frame_rate_num}, {"den", config.video_media_fields.frame_rate_den}}},
+          {"sampling", config.video_media_fields.sampling},
+          {"structure", config.video_media_fields.structure}}}};
+    return sender;
+}
+
+json create_audio_sender_config(config_fields_t& config)
 {
     json sender = {{"id", config.sender_id},
                    {"label", config.sender_label},
@@ -77,14 +109,37 @@ json create_sender_config(config_fields_t& config)
                        {"destination_address", config.network.destination_address},
                        {"destination_port", config.network.destination_port}}}}},
                    {"payload_type", 97},
-                   {"media_type", "video/raw"},
+                   {"media_type", "audio/L24"},
                    {"media",
-                    {{"width", config.media.width},
-                     {"height", config.media.height},
-                     {"frame_rate", {{"num", config.media.frame_rate_num}, {"den", config.media.frame_rate_density}}},
-                     {"sampling", config.media.sampling},
-                     {"structure", config.media.structure}}}};
+                    {{"number_of_channels", config.audio_sender_fields.number_of_channels},
+                     {"sampling_rate", config.audio_sender_fields.sampling_rate},
+                     {"packet_time", config.audio_sender_fields.packet_time}}}};
     return sender;
+}
+
+std::string translate_video_format(const std::string& gst_format)
+{
+    static const std::unordered_map<std::string, std::string> video_format_map = {
+        {"UYVP", "YCbCr-4:2:2"}, {"RGB", "RGB-8:8:8"}, {"RGBA", "RGBA-8:8:8:8"}};
+
+    auto it = video_format_map.find(gst_format);
+    if(it != video_format_map.end())
+    {
+        return it->second;
+    }
+    return gst_format;
+}
+
+std::string translate_audio_format(const std::string& gst_format)
+{
+    static const std::unordered_map<std::string, std::string> audio_format_map = {{"S24BE", "L24"}, {"S16LE", "L16"}};
+
+    auto it = audio_format_map.find(gst_format);
+    if(it != audio_format_map.end())
+    {
+        return it->second;
+    }
+    return gst_format;
 }
 
 expected<json> load_configuration_from_file(std::string_view config_file)
