@@ -145,6 +145,7 @@ namespace
             .exact_framerate = nmos::rational(params.exactframerate.numerator(), params.exactframerate.denominator()),
             .chroma_sub_sampling = "YCbCr-4:2:2",
             .structure = params.interlace ? nmos::interlace_modes::interlaced_tff : nmos::interlace_modes::progressive,
+            .depth     = static_cast<int>(params.depth),
         };
     }
 } // namespace

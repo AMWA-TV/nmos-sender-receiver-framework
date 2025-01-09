@@ -109,18 +109,17 @@ static void gst_nmossender_set_property(GObject* object, guint property_id, cons
 
     case PropertyId::InterfaceName:
         self->config.network.interface_name = g_value_dup_string(value);
-        g_object_set(G_OBJECT(self->udpsink), "bind_address", self->config.network.interface_name.c_str(), NULL);
+        g_object_set(G_OBJECT(self->udpsink), "bind_address", self->config.network.interface_name.c_str(), nullptr);
         break;
 
     case PropertyId::DestinationAddress:
         self->config.network.destination_address = g_value_dup_string(value);
-        g_print("\n\n\n\n\n%s", self->config.network.destination_address.c_str());
-        g_object_set(G_OBJECT(self->udpsink), "host", self->config.network.destination_address.c_str(), NULL);
+        g_object_set(G_OBJECT(self->udpsink), "host", self->config.network.destination_address.c_str(), nullptr);
         break;
 
     case PropertyId::DestinationPort:
-        self->config.network.destination_port = g_value_dup_string(value);
-        g_object_set(G_OBJECT(self->udpsink), "port", atoi(self->config.network.destination_port.c_str()), NULL);
+        self->config.network.destination_port = atoi(g_value_get_string(value));
+        g_object_set(G_OBJECT(self->udpsink), "port", self->config.network.destination_port, nullptr);
         break;
 
     default: G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec); break;
@@ -181,12 +180,12 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
                 // g_print("Audio caps detected\n");
                 // GST_INFO_OBJECT(self, "Audio caps detected");
                 //
-                if(!gst_element_link(self->queue, self->audio_payloader))
+                if(gst_element_link(self->queue, self->audio_payloader) == false)
                 {
                     GST_ERROR_OBJECT(self, "Failed to link queue to audio_payloader");
                     return false;
                 }
-                if(!gst_element_link(self->audio_payloader, self->udpsink))
+                if(gst_element_link(self->audio_payloader, self->udpsink) == false)
                 {
                     GST_ERROR_OBJECT(self, "Failed to link audio_payloader to udpsink");
                     return false;
@@ -223,12 +222,12 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
                 // g_print("Video caps detected\n");
                 // GST_INFO_OBJECT(self, "Video caps detected");
                 //
-                if(!gst_element_link(self->queue, self->video_payloader))
+                if(gst_element_link(self->queue, self->video_payloader) == false)
                 {
                     GST_ERROR_OBJECT(self, "Failed to link queue to video_payloader");
                     return false;
                 }
-                if(!gst_element_link(self->video_payloader, self->udpsink))
+                if(gst_element_link(self->video_payloader, self->udpsink) == false)
                 {
                     GST_ERROR_OBJECT(self, "Failed to link video_payloader to udpsink");
                     return false;
@@ -311,7 +310,7 @@ static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, Gst
         // g_print("Sender Configuration: %s\n", sender_config_json.dump().c_str());
 
         auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
-        if(!result.has_value())
+        if(result.has_value() == false)
         {
             GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. Node ID: %s", self->config.node.id.c_str());
             return GST_STATE_CHANGE_FAILURE;
@@ -394,10 +393,10 @@ static void gst_nmossender_class_init(GstNmossenderClass* klass)
 /* Object initialization */
 static void gst_nmossender_init(GstNmossender* self)
 {
-    self->queue           = gst_element_factory_make("queue", NULL);
-    self->video_payloader = gst_element_factory_make("rtpvrawpay", NULL);
-    self->audio_payloader = gst_element_factory_make("rtpL24pay", NULL);
-    self->udpsink         = gst_element_factory_make("udpsink", NULL);
+    self->queue           = gst_element_factory_make("queue", nullptr);
+    self->video_payloader = gst_element_factory_make("rtpvrawpay", nullptr);
+    self->audio_payloader = gst_element_factory_make("rtpL24pay", nullptr);
+    self->udpsink         = gst_element_factory_make("udpsink", nullptr);
 
     if(!self->queue || !self->video_payloader || !self->audio_payloader || !self->udpsink)
     {
@@ -411,11 +410,11 @@ static void gst_nmossender_init(GstNmossender* self)
     g_object_set(G_OBJECT(self->udpsink), "host", "127.0.0.1", "port", 9999, NULL);
     create_default_config_fields(&self->config);
 
-    gst_bin_add_many(GST_BIN(self), self->queue, self->video_payloader, self->audio_payloader, self->udpsink, NULL);
+    gst_bin_add_many(GST_BIN(self), self->queue, self->video_payloader, self->audio_payloader, self->udpsink, nullptr);
 
     // create and configure the sink pad
     GstPad* queue_sinkpad = gst_element_get_static_pad(self->queue, "sink");
-    if(!queue_sinkpad)
+    if(queue_sinkpad == nullptr)
     {
         GST_ERROR_OBJECT(self, "Failed to get static pad 'sink' from queue");
         return;
@@ -423,7 +422,7 @@ static void gst_nmossender_init(GstNmossender* self)
     GstPad* sink_ghost_pad = gst_ghost_pad_new("sink", queue_sinkpad);
     gst_object_unref(queue_sinkpad);
 
-    if(!sink_ghost_pad)
+    if(sink_ghost_pad == nullptr)
     {
         GST_ERROR_OBJECT(self, "Failed to create ghost pad for sink");
         return;
@@ -431,7 +430,7 @@ static void gst_nmossender_init(GstNmossender* self)
 
     gst_pad_set_event_function(sink_ghost_pad, gst_nmossender_sink_event);
 
-    if(!gst_element_add_pad(GST_ELEMENT(self), sink_ghost_pad))
+    if(gst_element_add_pad(GST_ELEMENT(self), sink_ghost_pad) == false)
     {
         GST_ERROR_OBJECT(self, "Failed to add ghost pad to element; pad with same name might exist");
         gst_object_unref(sink_ghost_pad);

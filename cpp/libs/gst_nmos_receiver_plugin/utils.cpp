@@ -18,50 +18,28 @@ void create_default_config_fields(config_fields_t* config)
     }
 
     // Initialize node_fields_t
-    config->node.id = "d5504cd1-fe68-489d-99d4-20d3f075f062";
+    config->node.id = "d49c85db-1c33-4f21-b160-58edd2af1810";
     config->node.configuration_location =
-        "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/config/nmos_plugin_node_config_sender.json";
+        "/home/nmos/repos/nmos-sender-receiver-framework/cpp/demos/config/nmos_plugin_node_config_receiver.json";
 
     // Initialize device_fields_t
-    config->device.id          = "e92e628b-7421-4723-9fb9-c1f3b38af9d3";
+    config->device.id          = "1ad20d7c-8c58-4c84-8f14-3cf3e3af164c";
     config->device.label       = "OSSRF Device2";
     config->device.description = "OSSRF Device2";
 
-    // Initialize video_media_fields_t
-    config->video_media_fields.width          = 640;
-    config->video_media_fields.height         = 480;
-    config->video_media_fields.frame_rate_num = 50;
-    config->video_media_fields.frame_rate_den = 1;
-    config->video_media_fields.sampling       = "YCbCr-4:2:2";
-    config->video_media_fields.structure      = "progressive";
-
-    // Initialize audio_media_fields_t
-    config->audio_sender_fields.format             = "audio/L24";
-    config->audio_sender_fields.number_of_channels = 1;
-    config->audio_sender_fields.packet_time        = 1.000;
-    config->audio_sender_fields.sampling_rate      = 48000;
-
-    // Initialize network_fields_t
-    config->network.source_address      = "192.168.1.120";
-    config->network.interface_name      = "wlp1s0";
-    config->network.destination_address = "192.168.1.120";
-    config->network.destination_port    = 9999;
-
     // Initialize config_fields_t
-    config->sender_id          = "1c920570-e0b4-4637-b02c-26c9d4275c71";
-    config->sender_label       = "BISECT OSSRF Media Sender";
-    config->sender_description = "BISECT OSSRF Media Sender";
+    config->id             = "db9f46cf-2414-4e25-b6c6-2078159857f9";
+    config->label          = "BISECT OSSRF Video Receiver";
+    config->description    = "BISECT OSSRF Video Receiver";
+    config->interface_name = "wlp1s0";
+    config->address        = "192.168.1.36";
 }
 
 json create_node_config(config_fields_t& config)
 {
-    const std::string node_config_str = get_node_config(config.node.configuration_location.data());
-
-    // Parse the configuration into a JSON object
-    json node_config = json::parse(node_config_str);
-
-    // Override the "id" field with the one from the config_fields_t structure
-    node_config["id"] = config.node.id;
+    const std::string node_config_str = get_node_config(config.node.configuration_location);
+    json node_config                  = json::parse(node_config_str);
+    node_config["id"]                 = config.node.id;
 
     return node_config;
 }
@@ -73,54 +51,21 @@ json create_device_config(config_fields_t& config)
     return device;
 }
 
-json create_video_sender_config(config_fields_t& config)
+json create_receiver_config(config_fields_t& config)
 {
     json sender = {
-        {"id", config.sender_id},
-        {"label", config.sender_label},
-        {"description", config.sender_description},
-        {"network",
-         {{"primary",
-           {{"source_address", config.network.source_address},
-            {"interface_name", config.network.interface_name},
-            {"destination_address", config.network.destination_address},
-            {"destination_port", config.network.destination_port}}}}},
-        {"payload_type", 97},
-        {"media_type", "video/raw"},
-        {"media",
-         {{"width", config.video_media_fields.width},
-          {"height", config.video_media_fields.height},
-          {"frame_rate",
-           {{"num", config.video_media_fields.frame_rate_num}, {"den", config.video_media_fields.frame_rate_den}}},
-          {"sampling", config.video_media_fields.sampling},
-          {"structure", config.video_media_fields.structure}}}};
-    return sender;
-}
-
-json create_audio_sender_config(config_fields_t& config)
-{
-    json sender = {{"id", config.sender_id},
-                   {"label", config.sender_label},
-                   {"description", config.sender_description},
-                   {"network",
-                    {{"primary",
-                      {{"source_address", config.network.source_address},
-                       {"interface_name", config.network.interface_name},
-                       {"destination_address", config.network.destination_address},
-                       {"destination_port", config.network.destination_port}}}}},
-                   {"payload_type", 97},
-                   {"media_type", "audio/L24"},
-                   {"media",
-                    {{"number_of_channels", config.audio_sender_fields.number_of_channels},
-                     {"sampling_rate", config.audio_sender_fields.sampling_rate},
-                     {"packet_time", config.audio_sender_fields.packet_time}}}};
+        {"id", config.id},
+        {"label", config.label},
+        {"description", config.description},
+        {"network", {{"primary", {{"interface_address", config.address}, {"interface_name", config.interface_name}}}}},
+        {"capabilities", {"video/raw"}}};
     return sender;
 }
 
 std::string translate_video_format(const std::string& gst_format)
 {
-    static const std::unordered_map<std::string, std::string> video_format_map = {
-        {"UYVP", "YCbCr-4:2:2"}, {"RGB", "RGB-8:8:8"}, {"RGBA", "RGBA-8:8:8:8"}};
+    static const std::unordered_map<std::string, std::string> video_format_map = {{"UYVP", "YCbCr-4:2:2"},
+                                                                                  {"RGBA", "RGBA-8:8:8:8"}};
 
     auto it = video_format_map.find(gst_format);
     if(it != video_format_map.end())
@@ -175,9 +120,9 @@ std::string get_node_id(char* node_configuration_location)
     return "";
 }
 
-std::string get_node_config(char* node_configuration_location)
+std::string get_node_config(std::string node_configuration_location)
 {
-    const auto configuration_result = load_configuration_from_file(node_configuration_location);
+    const auto configuration_result = load_configuration_from_file(node_configuration_location.c_str());
 
     const json& configuration = configuration_result.value();
 
