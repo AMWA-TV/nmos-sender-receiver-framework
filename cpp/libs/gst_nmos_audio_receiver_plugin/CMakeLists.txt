@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(gst_nmos_receiver_plugin LANGUAGES CXX)
+project(gst_nmos_audio_receiver_plugin LANGUAGES CXX)
 
 find_package(nlohmann_json REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -18,7 +18,7 @@ include_directories(${GLIB_INCLUDE_DIRS})
 link_directories(${GLIB_LIBRARY_DIRS})
 add_definitions(${GLIB_CFLAGS_OTHER})
 
-# Include source files for gst_nmos_receiver_plugin
+# Include source files for gst_nmos_audio_receiver_plugin
 file(GLOB_RECURSE PLUGIN_SOURCE_FILES *.cpp *.h)
 
 # Include source files for utils
@@ -57,7 +57,7 @@ target_link_libraries(${PROJECT_NAME}
 # Specify the output directory and the library name
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins
-    OUTPUT_NAME "gstnmosvideoreceiver"
+    OUTPUT_NAME "gstnmosaudioreceiver"
 )
 
 add_library(ossrf::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
