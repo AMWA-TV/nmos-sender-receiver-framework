@@ -50,7 +50,8 @@ typedef struct _GstNmosaudioreceiver
     GstClock* clock;
     GstElementHandle<_GstElement> bin;
     GstElementHandle<_GstElement> udp_src;
-    GstElementHandle<_GstElement> rtp_audio_depay;
+    GstElementHandle<_GstElement> rtp_audio_depay_16;
+    GstElementHandle<_GstElement> rtp_audio_depay_24;
     GstElementHandle<_GstElement> rtp_jitter_buffer;
     GstElementHandle<_GstElement> queue;
     ossrf::nmos_client_uptr client;
@@ -71,7 +72,7 @@ G_DEFINE_TYPE_WITH_CODE(GstNmosaudioreceiver, gst_nmosaudioreceiver, GST_TYPE_BI
 // Pad template
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE("src", GST_PAD_SRC, GST_PAD_ALWAYS,
                                                                    GST_STATIC_CAPS("audio/x-raw, "
-                                                                                   "format=(string){ S16LE, S24BE }; "
+                                                                                   "format=(string){ S16BE, S24BE }; "
                                                                                    "application/x-rtp"));
 
 enum class PropertyId : uint32_t
@@ -163,7 +164,8 @@ void remove_old_bin(GstNmosaudioreceiver* self)
 
         gst_bin_remove(GST_BIN(self), self->udp_src.get());
         gst_bin_remove(GST_BIN(self), self->rtp_jitter_buffer.get());
-        gst_bin_remove(GST_BIN(self), self->rtp_audio_depay.get());
+        gst_bin_remove(GST_BIN(self), self->rtp_audio_depay_16.get());
+        gst_bin_remove(GST_BIN(self), self->rtp_audio_depay_24.get());
         gst_bin_remove(GST_BIN(self), self->queue.get());
 
         gst_bin_remove(GST_BIN(self), self->bin.get());
@@ -171,7 +173,8 @@ void remove_old_bin(GstNmosaudioreceiver* self)
         self->udp_src.reset();
         self->queue.reset();
         self->rtp_jitter_buffer.reset();
-        self->rtp_audio_depay.reset();
+        self->rtp_audio_depay_16.reset();
+        self->rtp_audio_depay_24.reset();
         self->bin.reset();
 
         if(block_id != 0)
@@ -212,27 +215,31 @@ void construct_pipeline(GstNmosaudioreceiver* self)
 
         self->bin = std::move(bin);
 
-        auto maybeUdpsrc = GstElementHandle<GstElement>::create_element("udpsrc", nullptr);
-        auto maybeQueue  = GstElementHandle<GstElement>::create_element("queue", nullptr);
-        auto maybeJitter = GstElementHandle<GstElement>::create_element("rtpjitterbuffer", nullptr);
-        auto maybeDepay  = GstElementHandle<GstElement>::create_element("rtpL24depay", nullptr);
+        auto maybeUdpsrc  = GstElementHandle<GstElement>::create_element("udpsrc", nullptr);
+        auto maybeQueue   = GstElementHandle<GstElement>::create_element("queue", nullptr);
+        auto maybeJitter  = GstElementHandle<GstElement>::create_element("rtpjitterbuffer", nullptr);
+        auto maybeDepay16 = GstElementHandle<GstElement>::create_element("rtpL16depay", nullptr);
+        auto maybeDepay24 = GstElementHandle<GstElement>::create_element("rtpL24depay", nullptr);
 
         if(std::holds_alternative<std::nullptr_t>(maybeUdpsrc) || std::holds_alternative<std::nullptr_t>(maybeQueue) ||
-           std::holds_alternative<std::nullptr_t>(maybeJitter) || std::holds_alternative<std::nullptr_t>(maybeDepay))
+           std::holds_alternative<std::nullptr_t>(maybeJitter) ||
+           std::holds_alternative<std::nullptr_t>(maybeDepay16) || std::holds_alternative<std::nullptr_t>(maybeDepay24))
         {
             GST_ERROR_OBJECT(self, "Failed to create pipeline elements.");
             return;
         }
 
-        GstElementHandle<GstElement> udpsrc = std::move(std::get<GstElementHandle<GstElement>>(maybeUdpsrc));
-        GstElementHandle<GstElement> queue  = std::move(std::get<GstElementHandle<GstElement>>(maybeQueue));
-        GstElementHandle<GstElement> jitter = std::move(std::get<GstElementHandle<GstElement>>(maybeJitter));
-        GstElementHandle<GstElement> depay  = std::move(std::get<GstElementHandle<GstElement>>(maybeDepay));
+        GstElementHandle<GstElement> udpsrc  = std::move(std::get<GstElementHandle<GstElement>>(maybeUdpsrc));
+        GstElementHandle<GstElement> queue   = std::move(std::get<GstElementHandle<GstElement>>(maybeQueue));
+        GstElementHandle<GstElement> jitter  = std::move(std::get<GstElementHandle<GstElement>>(maybeJitter));
+        GstElementHandle<GstElement> depay16 = std::move(std::get<GstElementHandle<GstElement>>(maybeDepay16));
+        GstElementHandle<GstElement> depay24 = std::move(std::get<GstElementHandle<GstElement>>(maybeDepay24));
 
-        self->udp_src           = std::move(udpsrc);
-        self->queue             = std::move(queue);
-        self->rtp_jitter_buffer = std::move(jitter);
-        self->rtp_audio_depay   = std::move(depay);
+        self->udp_src            = std::move(udpsrc);
+        self->queue              = std::move(queue);
+        self->rtp_jitter_buffer  = std::move(jitter);
+        self->rtp_audio_depay_16 = std::move(depay16);
+        self->rtp_audio_depay_24 = std::move(depay24);
 
         g_object_set(
             G_OBJECT(self->udp_src.get()), "address", self->sdp_settings.primary.destination_ip.value().c_str(), "port",
@@ -249,26 +256,50 @@ void construct_pipeline(GstNmosaudioreceiver* self)
         g_object_set(G_OBJECT(self->queue.get()), "max-size-buffers", 3, nullptr);
 
         gst_bin_add_many(GST_BIN(self->bin.get()), self->udp_src.get(), self->rtp_jitter_buffer.get(),
-                         self->queue.get(), self->rtp_audio_depay.get(), nullptr);
+                         self->queue.get(), self->rtp_audio_depay_16.get(), self->rtp_audio_depay_24.get(), nullptr);
 
         gst_element_sync_state_with_parent(self->udp_src.get());
         gst_element_sync_state_with_parent(self->rtp_jitter_buffer.get());
         gst_element_sync_state_with_parent(self->queue.get());
-        gst_element_sync_state_with_parent(self->rtp_audio_depay.get());
+        gst_element_sync_state_with_parent(self->rtp_audio_depay_16.get());
+        gst_element_sync_state_with_parent(self->rtp_audio_depay_24.get());
 
-        if(gst_element_link_many(self->udp_src.get(), self->rtp_jitter_buffer.get(), self->queue.get(),
-                                 self->rtp_audio_depay.get(), nullptr) == false)
+        GstPad* bin_src_pad = nullptr;
+
+        if(audio_info.bits_per_sample == 16)
         {
-            GST_ERROR_OBJECT(self, "Failed to link elements inside the bin.");
-            return;
+
+            if(gst_element_link_many(self->udp_src.get(), self->rtp_jitter_buffer.get(), self->queue.get(),
+                                     self->rtp_audio_depay_16.get(), nullptr) == false)
+            {
+                GST_ERROR_OBJECT(self, "Failed to link elements inside the bin.");
+                return;
+            }
+
+            // Create a ghost pad from the depay's src
+            bin_src_pad = gst_element_get_static_pad(self->rtp_audio_depay_16.get(), "src");
+            if(bin_src_pad == nullptr)
+            {
+                GST_ERROR_OBJECT(self, "Failed to get src pad from rtp_audio_depay.");
+                return;
+            }
         }
-
-        // Create a ghost pad from the depay's src
-        GstPad* bin_src_pad = gst_element_get_static_pad(self->rtp_audio_depay.get(), "src");
-        if(bin_src_pad == nullptr)
+        else
         {
-            GST_ERROR_OBJECT(self, "Failed to get src pad from rtp_audio_depay.");
-            return;
+            if(gst_element_link_many(self->udp_src.get(), self->rtp_jitter_buffer.get(), self->queue.get(),
+                                     self->rtp_audio_depay_24.get(), nullptr) == false)
+            {
+                GST_ERROR_OBJECT(self, "Failed to link elements inside the bin.");
+                return;
+            }
+
+            // Create a ghost pad from the depay's src
+            bin_src_pad = gst_element_get_static_pad(self->rtp_audio_depay_24.get(), "src");
+            if(bin_src_pad == nullptr)
+            {
+                GST_ERROR_OBJECT(self, "Failed to get src pad from rtp_audio_depay.");
+                return;
+            }
         }
 
         GstPad* bin_ghost_pad = gst_ghost_pad_new("src", bin_src_pad);
@@ -308,7 +339,12 @@ void construct_pipeline(GstNmosaudioreceiver* self)
 
 void create_nmos(GstNmosaudioreceiver* self)
 {
-    const auto node_config_json                           = create_node_config(self->config);
+    const auto node_config_json = create_node_config(self->config);
+    if(node_config_json == nullptr)
+    {
+        GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. No valid node JSON location given.");
+        return;
+    }
     const auto device_config_json                         = create_device_config(self->config);
     nlohmann::json_abi_v3_11_3::json receiver_config_json = nullptr;
 

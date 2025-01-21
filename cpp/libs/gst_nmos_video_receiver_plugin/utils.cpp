@@ -38,10 +38,17 @@ void create_default_config_fields(config_fields_t* config)
 json create_node_config(config_fields_t& config)
 {
     const std::string node_config_str = get_node_config(config.node.configuration_location);
-    json node_config                  = json::parse(node_config_str);
-    node_config["id"]                 = config.node.id;
+    if(node_config_str != "")
+    {
+        json node_config  = json::parse(node_config_str);
+        node_config["id"] = config.node.id;
 
-    return node_config;
+        return node_config;
+    }
+    else
+    {
+        return nullptr;
+    }
 }
 
 json create_device_config(config_fields_t& config)
@@ -124,23 +131,25 @@ std::string get_node_config(std::string node_configuration_location)
 {
     const auto configuration_result = load_configuration_from_file(node_configuration_location.c_str());
 
-    const json& configuration = configuration_result.value();
-
-    auto node_result = find<json>(configuration, "node");
-
-    const json& node = node_result.value();
-
-    auto node_id_result     = find<std::string>(node, "id");
-    auto node_config_result = find<json>(node, "configuration");
-
-    if(node_id_result.has_value() && node_config_result.has_value())
+    if(configuration_result.has_value())
     {
-        const std::string node_id            = node_id_result.value();
-        const std::string node_configuration = node_config_result.value().dump();
+        const json& configuration = configuration_result.value();
 
-        return node_configuration;
+        auto node_result = find<json>(configuration, "node");
+
+        const json& node = node_result.value();
+
+        auto node_id_result     = find<std::string>(node, "id");
+        auto node_config_result = find<json>(node, "configuration");
+
+        if(node_id_result.has_value() && node_config_result.has_value())
+        {
+            const std::string node_id            = node_id_result.value();
+            const std::string node_configuration = node_config_result.value().dump();
+
+            return node_configuration;
+        }
     }
-
     return "";
 }
 

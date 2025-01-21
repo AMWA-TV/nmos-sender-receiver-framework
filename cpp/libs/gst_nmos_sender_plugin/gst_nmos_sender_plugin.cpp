@@ -39,7 +39,8 @@ typedef struct _GstNmossender
     GstBin parent;
     GstElementHandle<_GstElement> queue;
     GstElementHandle<_GstElement> video_payloader;
-    GstElementHandle<_GstElement> audio_payloader;
+    GstElementHandle<_GstElement> audio_payloader_16;
+    GstElementHandle<_GstElement> audio_payloader_24;
     GstElementHandle<_GstElement> udpsink;
     ossrf::nmos_client_uptr client;
     GstCaps* caps;
@@ -75,7 +76,7 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE("sink", GST_
                                                                     GST_STATIC_CAPS("video/x-raw, "
                                                                                     "format=(string){ UYVP }; "
                                                                                     "audio/x-raw, "
-                                                                                    "format=(string)S24BE, "
+                                                                                    "format=(string){ S24BE, S16BE }, "
                                                                                     "layout=(string)interleaved, "
                                                                                     "rate=(int)[ 1, 2147483647 ], "
                                                                                     "channels=(int)[ 1, 2147483647 ]"));
@@ -176,21 +177,7 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
 
             if(media_type == "audio/x-raw")
             {
-                g_print("\n\n\n\n\n\n\n\n\n\n\n");
-                // DEBUG
-                // g_print("Audio caps detected\n");
-                // GST_INFO_OBJECT(self, "Audio caps detected");
-                //
-                if(gst_element_link(self->queue.get(), self->audio_payloader.get()) == false)
-                {
-                    GST_ERROR_OBJECT(self, "Failed to link queue to audio_payloader");
-                    return false;
-                }
-                if(gst_element_link(self->audio_payloader.get(), self->udpsink.get()) == false)
-                {
-                    GST_ERROR_OBJECT(self, "Failed to link audio_payloader to udpsink");
-                    return false;
-                }
+
                 self->caps            = gst_caps_ref(caps);
                 self->config.is_audio = true;
                 for(guint i = 0; i < gst_caps_get_size(caps); i++)
@@ -207,7 +194,37 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
                     }
                     if((format = gst_structure_get_string(structure, "format")))
                     {
-                        self->config.audio_sender_fields.format = translate_audio_format(format);
+                        self->config.audio_sender_fields.format = format;
+                    }
+                }
+                // DEBUG
+                // g_print("Audio caps detected\n");
+                // GST_INFO_OBJECT(self, "Audio caps detected");
+                //
+                if(self->config.audio_sender_fields.format == "S24BE")
+                {
+                    if(gst_element_link(self->queue.get(), self->audio_payloader_24.get()) == false)
+                    {
+                        GST_ERROR_OBJECT(self, "Failed to link queue to audio_payloader");
+                        return false;
+                    }
+                    if(gst_element_link(self->audio_payloader_24.get(), self->udpsink.get()) == false)
+                    {
+                        GST_ERROR_OBJECT(self, "Failed to link audio_payloader_24 to udpsink");
+                        return false;
+                    }
+                }
+                else
+                {
+                    if(gst_element_link(self->queue.get(), self->audio_payloader_16.get()) == false)
+                    {
+                        GST_ERROR_OBJECT(self, "Failed to link queue to audio_payloader");
+                        return false;
+                    }
+                    if(gst_element_link(self->audio_payloader_16.get(), self->udpsink.get()) == false)
+                    {
+                        GST_ERROR_OBJECT(self, "Failed to link audio_payloader_16 to udpsink");
+                        return false;
                     }
                 }
                 // DEBUG
@@ -217,8 +234,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
             }
             else if(media_type == "video/x-raw")
             {
-
-                g_print("\n\n\n\n\n\n\n\n\n\n\n");
                 // DEBUG
                 // g_print("Video caps detected\n");
                 // GST_INFO_OBJECT(self, "Video caps detected");
@@ -292,7 +307,12 @@ static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, Gst
     {
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING: {
 
-        const auto node_config_json                         = create_node_config(self->config);
+        const auto node_config_json = create_node_config(self->config);
+        if(node_config_json == nullptr)
+        {
+            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. No valid node JSON location given.");
+            return GST_STATE_CHANGE_FAILURE;
+        }
         const auto device_config_json                       = create_device_config(self->config);
         nlohmann::json_abi_v3_11_3::json sender_config_json = nullptr;
 
@@ -394,13 +414,15 @@ static void gst_nmossender_class_init(GstNmossenderClass* klass)
 /* Object initialization */
 static void gst_nmossender_init(GstNmossender* self)
 {
-    auto maybeQueue    = GstElementHandle<GstElement>::create_element("queue", nullptr);
-    auto maybeVideoPay = GstElementHandle<GstElement>::create_element("rtpvrawpay", nullptr);
-    auto maybeAudioPay = GstElementHandle<GstElement>::create_element("rtpL24pay", nullptr);
-    auto maybeUdpSink  = GstElementHandle<GstElement>::create_element("udpsink", nullptr);
+    auto maybeQueue      = GstElementHandle<GstElement>::create_element("queue", nullptr);
+    auto maybeVideoPay   = GstElementHandle<GstElement>::create_element("rtpvrawpay", nullptr);
+    auto maybeAudioPay16 = GstElementHandle<GstElement>::create_element("rtpL16pay", nullptr);
+    auto maybeAudioPay24 = GstElementHandle<GstElement>::create_element("rtpL24pay", nullptr);
+    auto maybeUdpSink    = GstElementHandle<GstElement>::create_element("udpsink", nullptr);
 
     if(std::holds_alternative<std::nullptr_t>(maybeQueue) || std::holds_alternative<std::nullptr_t>(maybeVideoPay) ||
-       std::holds_alternative<std::nullptr_t>(maybeAudioPay) || std::holds_alternative<std::nullptr_t>(maybeUdpSink))
+       std::holds_alternative<std::nullptr_t>(maybeAudioPay16) ||
+       std::holds_alternative<std::nullptr_t>(maybeAudioPay24) || std::holds_alternative<std::nullptr_t>(maybeUdpSink))
     {
         GST_ERROR_OBJECT(self, "Failed to create pipeline elements.");
         return;
@@ -408,21 +430,23 @@ static void gst_nmossender_init(GstNmossender* self)
 
     GstElementHandle<GstElement> queue      = std::move(std::get<GstElementHandle<GstElement>>(maybeQueue));
     GstElementHandle<GstElement> rtpvrawpay = std::move(std::get<GstElementHandle<GstElement>>(maybeVideoPay));
-    GstElementHandle<GstElement> rtpL24pay  = std::move(std::get<GstElementHandle<GstElement>>(maybeAudioPay));
+    GstElementHandle<GstElement> rtpL16pay  = std::move(std::get<GstElementHandle<GstElement>>(maybeAudioPay16));
+    GstElementHandle<GstElement> rtpL24pay  = std::move(std::get<GstElementHandle<GstElement>>(maybeAudioPay24));
     GstElementHandle<GstElement> udpsink    = std::move(std::get<GstElementHandle<GstElement>>(maybeUdpSink));
 
-    self->queue           = std::move(queue);
-    self->video_payloader = std::move(rtpvrawpay);
-    self->audio_payloader = std::move(rtpL24pay);
-    self->udpsink         = std::move(udpsink);
+    self->queue              = std::move(queue);
+    self->video_payloader    = std::move(rtpvrawpay);
+    self->audio_payloader_16 = std::move(rtpL16pay);
+    self->audio_payloader_24 = std::move(rtpL24pay);
+    self->udpsink            = std::move(udpsink);
 
     // set properties
     g_object_set(G_OBJECT(self->queue.get()), "max-size-buffers", 1, nullptr);
     g_object_set(G_OBJECT(self->udpsink.get()), "host", "127.0.0.1", "port", 9999, nullptr);
     create_default_config_fields(&self->config);
 
-    gst_bin_add_many(GST_BIN(self), self->queue.get(), self->video_payloader.get(), self->audio_payloader.get(),
-                     self->udpsink.get(), nullptr);
+    gst_bin_add_many(GST_BIN(self), self->queue.get(), self->video_payloader.get(), self->audio_payloader_24.get(),
+                     self->audio_payloader_16.get(), self->udpsink.get(), nullptr);
 
     // create and configure the sink pad
     GstPad* queue_sinkpad = gst_element_get_static_pad(self->queue.get(), "sink");

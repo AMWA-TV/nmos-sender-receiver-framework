@@ -57,13 +57,18 @@ json create_node_config(config_fields_t& config)
 {
     const std::string node_config_str = get_node_config(config.node.configuration_location.data());
 
-    // Parse the configuration into a JSON object
-    json node_config = json::parse(node_config_str);
+    if(node_config_str != "")
+    {
+        json node_config = json::parse(node_config_str);
 
-    // Override the "id" field with the one from the config_fields_t structure
-    node_config["id"] = config.node.id;
+        node_config["id"] = config.node.id;
 
-    return node_config;
+        return node_config;
+    }
+    else
+    {
+        return nullptr;
+    }
 }
 
 json create_device_config(config_fields_t& config)
@@ -99,6 +104,15 @@ json create_video_sender_config(config_fields_t& config)
 
 json create_audio_sender_config(config_fields_t& config)
 {
+    std::string media_type = "audio/L16";
+    if(config.audio_sender_fields.format == "S24BE")
+    {
+        media_type = "audio/L24";
+    }
+    else if(config.audio_sender_fields.format == "S16BE")
+    {
+        media_type = "audio/L16";
+    }
     json sender = {{"id", config.sender_id},
                    {"label", config.sender_label},
                    {"description", config.sender_description},
@@ -109,7 +123,7 @@ json create_audio_sender_config(config_fields_t& config)
                        {"destination_address", config.network.destination_address},
                        {"destination_port", config.network.destination_port}}}}},
                    {"payload_type", 97},
-                   {"media_type", "audio/L24"},
+                   {"media_type", media_type},
                    {"media",
                     {{"number_of_channels", config.audio_sender_fields.number_of_channels},
                      {"sampling_rate", config.audio_sender_fields.sampling_rate},
@@ -179,23 +193,25 @@ std::string get_node_config(char* node_configuration_location)
 {
     const auto configuration_result = load_configuration_from_file(node_configuration_location);
 
-    const json& configuration = configuration_result.value();
-
-    auto node_result = find<json>(configuration, "node");
-
-    const json& node = node_result.value();
-
-    auto node_id_result     = find<std::string>(node, "id");
-    auto node_config_result = find<json>(node, "configuration");
-
-    if(node_id_result.has_value() && node_config_result.has_value())
+    if(configuration_result.has_value())
     {
-        const std::string node_id            = node_id_result.value();
-        const std::string node_configuration = node_config_result.value().dump();
+        const json& configuration = configuration_result.value();
 
-        return node_configuration;
+        auto node_result = find<json>(configuration, "node");
+
+        const json& node = node_result.value();
+
+        auto node_id_result     = find<std::string>(node, "id");
+        auto node_config_result = find<json>(node, "configuration");
+
+        if(node_id_result.has_value() && node_config_result.has_value())
+        {
+            const std::string node_id            = node_id_result.value();
+            const std::string node_configuration = node_config_result.value().dump();
+
+            return node_configuration;
+        }
     }
-
     return "";
 }
 

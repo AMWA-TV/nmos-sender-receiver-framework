@@ -322,7 +322,12 @@ void construct_pipeline(GstNmosvideoreceiver* self)
 
 void create_nmos(GstNmosvideoreceiver* self)
 {
-    const auto node_config_json                           = create_node_config(self->config);
+    const auto node_config_json = create_node_config(self->config);
+    if(node_config_json == nullptr)
+    {
+        GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. No valid node JSON location given.");
+        return;
+    }
     const auto device_config_json                         = create_device_config(self->config);
     nlohmann::json_abi_v3_11_3::json receiver_config_json = nullptr;
 
