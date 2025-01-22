@@ -23,6 +23,8 @@
 #include "bisect/json.h"
 #include "utils.h"
 #include "ossrf/nmos/api/nmos_client.h"
+#include "../include/element_class.h"
+#include "../include/nmos_configuration.h"
 #include <gst/gst.h>
 #include <gst/gstpad.h>
 
@@ -100,11 +102,11 @@ static void gst_nmossender_set_property(GObject* object, guint property_id, cons
 
     case PropertyId::DeviceDescription: self->config.device.description = g_value_dup_string(value); break;
 
-    case PropertyId::SenderId: self->config.sender_id = g_value_dup_string(value); break;
+    case PropertyId::SenderId: self->config.id = g_value_dup_string(value); break;
 
-    case PropertyId::SenderLabel: self->config.sender_label = g_value_dup_string(value); break;
+    case PropertyId::SenderLabel: self->config.label = g_value_dup_string(value); break;
 
-    case PropertyId::SenderDescription: self->config.sender_description = g_value_dup_string(value); break;
+    case PropertyId::SenderDescription: self->config.description = g_value_dup_string(value); break;
 
     case PropertyId::SourceAddress: self->config.network.source_address = g_value_dup_string(value); break;
 
@@ -141,9 +143,9 @@ static void gst_nmossender_get_property(GObject* object, guint property_id, GVal
     case PropertyId::DeviceId: g_value_set_string(value, self->config.device.id.c_str()); break;
     case PropertyId::DeviceLabel: g_value_set_string(value, self->config.device.label.c_str()); break;
     case PropertyId::DeviceDescription: g_value_set_string(value, self->config.device.description.c_str()); break;
-    case PropertyId::SenderId: g_value_set_string(value, self->config.sender_id.c_str()); break;
-    case PropertyId::SenderLabel: g_value_set_string(value, self->config.sender_label.c_str()); break;
-    case PropertyId::SenderDescription: g_value_set_string(value, self->config.sender_description.c_str()); break;
+    case PropertyId::SenderId: g_value_set_string(value, self->config.id.c_str()); break;
+    case PropertyId::SenderLabel: g_value_set_string(value, self->config.label.c_str()); break;
+    case PropertyId::SenderDescription: g_value_set_string(value, self->config.description.c_str()); break;
     case PropertyId::SourceAddress: g_value_set_string(value, self->config.network.source_address.c_str()); break;
     case PropertyId::InterfaceName: g_value_set_string(value, self->config.network.interface_name.c_str()); break;
     case PropertyId::DestinationAddress:
@@ -169,8 +171,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
         if(caps)
         {
             gchar* caps_str = gst_caps_to_string(caps);
-            // DEBUG
-            // g_print("\n\nReceived CAPS from upstream: %s\n", caps_str);
 
             const GstStructure* structure = gst_caps_get_structure(caps, 0);
             std::string media_type        = gst_structure_get_name(structure);
@@ -197,10 +197,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
                         self->config.audio_sender_fields.format = format;
                     }
                 }
-                // DEBUG
-                // g_print("Audio caps detected\n");
-                // GST_INFO_OBJECT(self, "Audio caps detected");
-                //
                 if(self->config.audio_sender_fields.format == "S24BE")
                 {
                     if(gst_element_link(self->queue.get(), self->audio_payloader_24.get()) == false)
@@ -227,17 +223,9 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
                         return false;
                     }
                 }
-                // DEBUG
-                // g_print("Rate: %d, Channels: %d, Format: %s\n", self->config.audio_sender_fields.sampling_rate,
-                //         self->config.audio_sender_fields.number_of_channels,
-                //         self->config.audio_sender_fields.format);
             }
             else if(media_type == "video/x-raw")
             {
-                // DEBUG
-                // g_print("Video caps detected\n");
-                // GST_INFO_OBJECT(self, "Video caps detected");
-                //
                 if(gst_element_link(self->queue.get(), self->video_payloader.get()) == false)
                 {
                     GST_ERROR_OBJECT(self, "Failed to link queue to video_payloader");
@@ -267,10 +255,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
                         self->config.video_media_fields.sampling = translate_video_format(format);
                     }
                 }
-
-                // DEBUG
-                // g_print("Width: %d, Height: %d, Format: %s\n", self->config.video_media_fields.width,
-                //         self->config.video_media_fields.height, self->config.video_media_fields.sampling);
             }
             else
             {
@@ -325,11 +309,6 @@ static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, Gst
             sender_config_json = create_video_sender_config(self->config);
         }
 
-        // DEBUG
-        // g_print("Node Configuration: %s\n", node_config_json.dump().c_str());
-        // g_print("Device Configuration: %s\n", device_config_json.dump().c_str());
-        // g_print("Sender Configuration: %s\n", sender_config_json.dump().c_str());
-
         auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
         if(result.has_value() == false)
         {
@@ -355,7 +334,6 @@ static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, Gst
     default: break;
     }
 
-    // This is needed to work ¯\_(ツ)_/¯
     ret = GST_ELEMENT_CLASS(gst_nmossender_parent_class)->change_state(element, transition);
 
     return ret;
@@ -428,22 +406,16 @@ static void gst_nmossender_init(GstNmossender* self)
         return;
     }
 
-    GstElementHandle<GstElement> queue      = std::move(std::get<GstElementHandle<GstElement>>(maybeQueue));
-    GstElementHandle<GstElement> rtpvrawpay = std::move(std::get<GstElementHandle<GstElement>>(maybeVideoPay));
-    GstElementHandle<GstElement> rtpL16pay  = std::move(std::get<GstElementHandle<GstElement>>(maybeAudioPay16));
-    GstElementHandle<GstElement> rtpL24pay  = std::move(std::get<GstElementHandle<GstElement>>(maybeAudioPay24));
-    GstElementHandle<GstElement> udpsink    = std::move(std::get<GstElementHandle<GstElement>>(maybeUdpSink));
-
-    self->queue              = std::move(queue);
-    self->video_payloader    = std::move(rtpvrawpay);
-    self->audio_payloader_16 = std::move(rtpL16pay);
-    self->audio_payloader_24 = std::move(rtpL24pay);
-    self->udpsink            = std::move(udpsink);
+    self->queue              = std::move(std::get<GstElementHandle<GstElement>>(maybeQueue));
+    self->video_payloader    = std::move(std::get<GstElementHandle<GstElement>>(maybeVideoPay));
+    self->audio_payloader_16 = std::move(std::get<GstElementHandle<GstElement>>(maybeAudioPay16));
+    self->audio_payloader_24 = std::move(std::get<GstElementHandle<GstElement>>(maybeAudioPay24));
+    self->udpsink            = std::move(std::get<GstElementHandle<GstElement>>(maybeUdpSink));
 
     // set properties
     g_object_set(G_OBJECT(self->queue.get()), "max-size-buffers", 1, nullptr);
     g_object_set(G_OBJECT(self->udpsink.get()), "host", "127.0.0.1", "port", 9999, nullptr);
-    create_default_config_fields(&self->config);
+    create_default_config_fields_sender(&self->config);
 
     gst_bin_add_many(GST_BIN(self), self->queue.get(), self->video_payloader.get(), self->audio_payloader_24.get(),
                      self->audio_payloader_16.get(), self->udpsink.get(), nullptr);
