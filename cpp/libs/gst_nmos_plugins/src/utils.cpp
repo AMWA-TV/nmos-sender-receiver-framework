@@ -11,7 +11,6 @@
 using namespace bisect;
 using json = nlohmann::json;
 
-
 void create_default_config_fields_sender(config_fields_t* config)
 {
     if(!config)
@@ -80,7 +79,7 @@ void create_default_config_fields_video_receiver(config_fields_t* config)
     config->description    = "BISECT OSSRF Video Receiver";
     config->interface_name = "wlp1s0";
     config->address        = "192.168.1.36";
-    config->is_audio = false;
+    config->is_audio       = false;
 }
 
 void create_default_config_fields_audio_receiver(config_fields_t* config)
@@ -107,7 +106,7 @@ void create_default_config_fields_audio_receiver(config_fields_t* config)
     config->description    = "BISECT OSSRF Audio Receiver";
     config->interface_name = "wlp1s0";
     config->address        = "192.168.1.36";
-    config->is_audio = true;
+    config->is_audio       = true;
 }
 
 json create_node_config(config_fields_t& config)
@@ -136,7 +135,8 @@ json create_device_config(config_fields_t& config)
 json create_receiver_config(config_fields_t& config)
 {
     std::string caps = "video/raw";
-    if(config.is_audio == true){
+    if(config.is_audio == true)
+    {
         caps = "audio/L24";
     }
     json sender = {
@@ -275,7 +275,6 @@ std::string get_sender_config(char* sender_configuration_location)
 
     return sender_config.value().dump();
 }
-
 
 json create_video_sender_config(config_fields_t& config)
 {

@@ -331,53 +331,79 @@ void construct_pipeline(GstNmosaudioreceiver* self)
         fmt::print("Invalid format sent for current receiver.\n");
     }
 }
-
 void create_nmos(GstNmosaudioreceiver* self)
 {
-    const auto node_config_json = create_node_config(self->config);
-    if(node_config_json == nullptr)
-    {
-        GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. No valid node JSON location given.");
-        return;
-    }
-    const auto device_config_json                         = create_device_config(self->config);
-    nlohmann::json_abi_v3_11_3::json receiver_config_json = nullptr;
-
-    receiver_config_json = create_receiver_config(self->config);
-
-    auto receiver_callback = [self](const std::optional<std::string>& sdp, bool master_enabled) {
-        fmt::print("Receiver Activation Callback: SDP={}, Master Enabled={}\n", sdp.has_value() ? sdp.value() : "None",
-                   master_enabled);
-
-        if(sdp)
+    auto initialize_nmos = [&]() -> bool {
+        const auto node_config_json = create_node_config(self->config);
+        if(node_config_json == nullptr)
         {
-            fmt::print("Received SDP: {}\n", sdp.value());
-            auto sdp_settings = parse_sdp(sdp.value());
-            if(sdp_settings.has_value() && sdp.value() != self->sdp_string)
-            {
-                self->sdp_settings = sdp_settings.value();
-                self->sdp_string   = sdp.value();
-                remove_old_bin(self);
-                construct_pipeline(self);
-                gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
-            }
+            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. No valid node JSON location given.");
+            return false;
         }
-        else
+
+        auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
+        if(!result.has_value())
         {
-            fmt::print("No SDP provided.\n");
+            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client.");
+            return false;
         }
-        fmt::print("Master enabled: {}\n", master_enabled);
+
+        self->client = std::move(result.value());
+        return true;
     };
 
-    auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
-    if(!result.has_value())
-    {
-        GST_ERROR_OBJECT(self, "Failed to initialize NMOS client.");
-        return;
-    }
-    self->client = std::move(result.value());
-    self->client->add_device(device_config_json.dump());
-    self->client->add_receiver(self->config.device.id, receiver_config_json.dump(), receiver_callback);
+    if(!initialize_nmos()) return;
+
+    // Add device and receiver configurations
+    self->client->add_device(create_device_config(self->config).dump());
+    self->client->add_receiver(
+        self->config.device.id, create_receiver_config(self->config).dump(),
+        [self](const std::optional<std::string>& sdp, bool master_enabled) {
+            fmt::print("Receiver Activation Callback: SDP={}, Master Enabled={}\n",
+                       sdp.has_value() ? sdp.value() : "None", master_enabled);
+
+            if(master_enabled)
+            {
+                if(sdp)
+                {
+                    fmt::print("Received SDP: {}\n", sdp.value());
+                    auto sdp_settings = parse_sdp(sdp.value());
+                    if(sdp_settings.has_value() && sdp.value() != self->sdp_string)
+                    {
+                        self->sdp_settings = sdp_settings.value();
+                        self->sdp_string   = sdp.value();
+                        remove_old_bin(self);
+                        construct_pipeline(self);
+                        auto time = gst_element_get_base_time(GST_ELEMENT(self));
+                        gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
+                        gst_pad_set_offset(self->bin_pad, static_cast<long>(gst_clock_get_time(self->clock) - time));
+                    }
+                }
+                else if(!sdp && self->sdp_string != "")
+                {
+                    fmt::print("No new SDP provided, enabling master pipeline.\n");
+                    remove_old_bin(self);
+                    construct_pipeline(self);
+                    auto time = gst_element_get_base_time(GST_ELEMENT(self));
+                    gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
+                    gst_pad_set_offset(self->bin_pad, static_cast<long>(gst_clock_get_time(self->clock) - time));
+                }
+            }
+            else
+            {
+                if(sdp)
+                {
+                    fmt::print("Disabling master: SDP received but master is not enabled.\n");
+                    remove_old_bin(self);
+                }
+                else
+                {
+                    fmt::print("Master not enabled and no SDP provided.\n");
+                }
+            }
+            fmt::print("Master enabled: {}\n", master_enabled);
+        });
+
     GST_INFO_OBJECT(self, "NMOS client initialized successfully.");
 }
 
