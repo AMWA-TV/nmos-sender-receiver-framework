@@ -25,10 +25,10 @@
 #include "bisect/sdp.h"
 #include "bisect/sdp/reader.h"
 #include "bisect/nmoscpp/configuration.h"
-#include "utils.h"
 #include "ossrf/nmos/api/nmos_client.h"
-#include "gst_nmos_plugins/include/element_class.h"
-#include "gst_nmos_plugins/include/nmos_configuration.h"
+#include "utils.hpp"
+#include "gst_nmos_plugins/include/element_class.hpp"
+#include "gst_nmos_plugins/include/nmos_configuration.hpp"
 #include <gst/gst.h>
 #include <gst/gstpad.h>
 
@@ -49,17 +49,20 @@ typedef struct _GstNmosvideoreceiver
     GstBin parent;
     GstPad* element_pad;
     GstPad* bin_pad;
-    GstClock* clock;
     GstElementHandle<_GstElement> bin;
     GstElementHandle<_GstElement> udp_src;
     GstElementHandle<_GstElement> rtp_video_depay;
     GstElementHandle<_GstElement> rtp_jitter_buffer;
     GstElementHandle<_GstElement> queue;
+
     ossrf::nmos_client_uptr client;
     config_fields_t config;
-    std::string sdp_string;
     sdp_settings_t sdp_settings;
+    std::string sdp_string;
     bool nmos_active;
+    bool pipeline_clear;
+    bool user_forced_stop;
+    gint64 last_buffer_time;
 } GstNmosvideoreceiver;
 
 typedef struct _GstNmosvideoreceiverClass
@@ -101,23 +104,15 @@ static void gst_nmosvideoreceiver_set_property(GObject* object, guint property_i
     switch(static_cast<PropertyId>(property_id))
     {
     case PropertyId::NodeId: self->config.node.id = g_value_dup_string(value); break;
-
     case PropertyId::NodeConfigFileLocation:
         self->config.node.configuration_location = g_value_dup_string(value);
         break;
-
     case PropertyId::DeviceId: self->config.device.id = g_value_dup_string(value); break;
-
     case PropertyId::DeviceLabel: self->config.device.label = g_value_dup_string(value); break;
-
     case PropertyId::DeviceDescription: self->config.device.description = g_value_dup_string(value); break;
-
     case PropertyId::ReceiverId: self->config.id = g_value_dup_string(value); break;
-
     case PropertyId::ReceiverLabel: self->config.label = g_value_dup_string(value); break;
-
     case PropertyId::ReceiverDescription: self->config.description = g_value_dup_string(value); break;
-
     case PropertyId::DstAddress: self->config.address = g_value_dup_string(value); break;
 
     default: G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec); break;
@@ -159,32 +154,45 @@ void remove_old_bin(GstNmosvideoreceiver* self)
         return;
     }
     gulong block_id =
-        gst_pad_add_probe(self->element_pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, NULL, NULL);
+        gst_pad_add_probe(self->element_pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, nullptr, nullptr);
 
     gst_element_send_event(GST_ELEMENT(self), gst_event_new_flush_start());
-    gst_element_send_event(GST_ELEMENT(self), gst_event_new_flush_stop(FALSE));
+    gst_element_send_event(GST_ELEMENT(self), gst_event_new_flush_stop(false));
 
-    self->clock = gst_element_get_clock(GST_ELEMENT(self));
-
+    gst_element_set_state(self->udp_src.get(), GST_STATE_NULL);
     gst_element_set_state(self->bin.get(), GST_STATE_NULL);
 
-    gst_bin_remove(GST_BIN(self), self->udp_src.get());
-    gst_bin_remove(GST_BIN(self), self->rtp_jitter_buffer.get());
-    gst_bin_remove(GST_BIN(self), self->rtp_video_depay.get());
-    gst_bin_remove(GST_BIN(self), self->queue.get());
+    gst_bin_remove(GST_BIN(self->bin.get()), self->rtp_jitter_buffer.get());
+    gst_bin_remove(GST_BIN(self->bin.get()), self->rtp_video_depay.get());
+    gst_bin_remove(GST_BIN(self->bin.get()), self->queue.get());
 
     gst_bin_remove(GST_BIN(self), self->bin.get());
 
-    self->udp_src.forget();
     self->queue.forget();
     self->rtp_jitter_buffer.forget();
     self->rtp_video_depay.forget();
     self->bin.forget();
 
+    gst_element_set_state(self->bin.get(), GST_STATE_PLAYING);
     if(block_id != 0)
     {
         gst_pad_remove_probe(self->element_pad, block_id);
     }
+    self->element_pad = nullptr;
+}
+
+static GstPadProbeReturn buffer_monitor_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
+{
+    if(GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_BUFFER)
+    {
+        GstNmosvideoreceiver* self = (GstNmosvideoreceiver*)user_data;
+        self->last_buffer_time     = g_get_monotonic_time();
+        if(self->pipeline_clear == true)
+        {
+            self->pipeline_clear = false;
+        }
+    }
+    return GST_PAD_PROBE_OK;
 }
 
 void construct_pipeline(GstNmosvideoreceiver* self)
@@ -196,46 +204,44 @@ void construct_pipeline(GstNmosvideoreceiver* self)
         auto& fr                                        = video_info.exact_framerate;
         fmt::print("\n===== SDP Settings =====\n"
                    "Video (from variant):\n"
-                   "  - height: %d\n"
-                   "  - width:  %d\n"
-                   "  - framerate: %ld/%ld\n"
-                   "  - chroma_sub_sampling: %s\n"
-                   "  - structure (interlace mode): %s\n"
-                   "  - depth: %d\n"
+                   "  - height: {}\n"
+                   "  - width:  {}\n"
+                   "  - framerate: {}/{}\n"
+                   "  - chroma_sub_sampling: {}\n"
+                   "  - structure (interlace mode): {}\n"
+                   "  - depth: {}\n"
                    "Primary leg:\n"
-                   "  - destination_ip:   %s\n"
-                   "  - destination_port: %d\n"
+                   "  - destination_ip:   {}\n"
+                   "  - destination_port: {}\n"
                    "\n",
                    video_info.height, video_info.width, fr.numerator(), fr.denominator(),
                    video_info.chroma_sub_sampling.c_str(), video_info.structure.name.c_str(), video_info.depth,
                    self->sdp_settings.primary.destination_ip.value().c_str(),
                    self->sdp_settings.primary.destination_port.value());
 
-        auto maybeBin = GstElementHandle<GstElement>::create_bin("dynamic-bin");
-        if(std::holds_alternative<std::nullptr_t>(maybeBin))
+        auto maybe_bin = GstElementHandle<GstElement>::create_bin("dynamic-bin");
+        if(std::holds_alternative<std::nullptr_t>(maybe_bin))
         {
             GST_ERROR_OBJECT(self, "Failed to create bin");
             return;
         }
 
-        self->bin = std::move(std::get<GstElementHandle<GstElement>>(maybeBin));
+        self->bin = std::move(std::get<GstElementHandle<GstElement>>(maybe_bin));
 
-        auto maybeUdpsrc = GstElementHandle<GstElement>::create_element("udpsrc", nullptr);
-        auto maybeQueue  = GstElementHandle<GstElement>::create_element("queue", nullptr);
-        auto maybeJitter = GstElementHandle<GstElement>::create_element("rtpjitterbuffer", nullptr);
-        auto maybeDepay  = GstElementHandle<GstElement>::create_element("rtpvrawdepay", nullptr);
+        auto maybe_queue  = GstElementHandle<GstElement>::create_element("queue", nullptr);
+        auto maybe_jitter = GstElementHandle<GstElement>::create_element("rtpjitterbuffer", nullptr);
+        auto maybe_depay  = GstElementHandle<GstElement>::create_element("rtpvrawdepay", nullptr);
 
-        if(std::holds_alternative<std::nullptr_t>(maybeUdpsrc) || std::holds_alternative<std::nullptr_t>(maybeQueue) ||
-           std::holds_alternative<std::nullptr_t>(maybeJitter) || std::holds_alternative<std::nullptr_t>(maybeDepay))
+        if(std::holds_alternative<std::nullptr_t>(maybe_queue) ||
+           std::holds_alternative<std::nullptr_t>(maybe_jitter) || std::holds_alternative<std::nullptr_t>(maybe_depay))
         {
             GST_ERROR_OBJECT(self, "Failed to create pipeline elements.");
             return;
         }
 
-        self->udp_src           = std::move(std::get<GstElementHandle<GstElement>>(maybeUdpsrc));
-        self->queue             = std::move(std::get<GstElementHandle<GstElement>>(maybeQueue));
-        self->rtp_jitter_buffer = std::move(std::get<GstElementHandle<GstElement>>(maybeJitter));
-        self->rtp_video_depay   = std::move(std::get<GstElementHandle<GstElement>>(maybeDepay));
+        self->queue             = std::move(std::get<GstElementHandle<GstElement>>(maybe_queue));
+        self->rtp_jitter_buffer = std::move(std::get<GstElementHandle<GstElement>>(maybe_jitter));
+        self->rtp_video_depay   = std::move(std::get<GstElementHandle<GstElement>>(maybe_depay));
 
         g_object_set(G_OBJECT(self->udp_src.get()), "address",
                      self->sdp_settings.primary.destination_ip.value().c_str(), "port",
@@ -251,13 +257,18 @@ void construct_pipeline(GstNmosvideoreceiver* self)
 
         g_object_set(G_OBJECT(self->udp_src.get()), "caps", caps, nullptr);
 
-        g_object_set(G_OBJECT(self->rtp_jitter_buffer.get()), "do-retransmission", true, "do-lost", true, "mode", 2,
-                     "latency", 0, nullptr);
+        g_object_set(G_OBJECT(self->rtp_jitter_buffer.get()), "do-lost", false, "do-retransmission", false, "mode", 0,
+                     "latency", 10, nullptr);
 
         g_object_set(G_OBJECT(self->queue.get()), "max-size-buffers", 3, nullptr);
 
-        gst_bin_add_many(GST_BIN(self->bin.get()), self->udp_src.get(), self->rtp_jitter_buffer.get(),
-                         self->queue.get(), self->rtp_video_depay.get(), nullptr);
+        gst_bin_add_many(GST_BIN(self->bin.get()), self->rtp_jitter_buffer.get(), self->queue.get(),
+                         self->rtp_video_depay.get(), nullptr);
+
+        // Even though this is supposedly re-adding the udp_src, the function checks
+        // the bin's elements before adding them and skips the ones that are already
+        // there, so it only add's the new bin (not requiring if/else verification)
+        gst_bin_add_many(GST_BIN(self), self->udp_src.get(), self->bin.get(), nullptr);
 
         gst_element_sync_state_with_parent(self->udp_src.get());
         gst_element_sync_state_with_parent(self->rtp_jitter_buffer.get());
@@ -289,8 +300,6 @@ void construct_pipeline(GstNmosvideoreceiver* self)
             return;
         }
 
-        gst_bin_add(GST_BIN(self), self->bin.get());
-
         GstPad* plugin_pad = gst_element_get_static_pad(GST_ELEMENT(self), "src");
         if(plugin_pad == nullptr)
         {
@@ -312,6 +321,32 @@ void construct_pipeline(GstNmosvideoreceiver* self)
     {
         fmt::print("Invalid format sent for current receiver.\n");
     }
+}
+
+// check_no_data_timeout:
+//     If the pipeline is not intentionally stopped (user_forced_stop == false)
+//     and there's been no data for X seconds, this function triggers a pipeline
+//     rebuild (called by a g_timeout_add_seconds(1, ...)). This is required so
+//     there isn't a reconfiguration period when data is received again,
+//     making it instantly turn the stream back on.
+static gboolean check_no_data_timeout(gpointer user_data)
+{
+    GstNmosvideoreceiver* self = (GstNmosvideoreceiver*)user_data;
+    gint64 now                 = g_get_monotonic_time();
+    if(self->user_forced_stop == true)
+    {
+        return G_SOURCE_CONTINUE;
+    }
+    if((now - self->last_buffer_time) > (6 * G_GINT64_CONSTANT(1000000)) && self->pipeline_clear == false)
+    {
+        fmt::print("Timeout detected. Restarting pipeline.\n");
+        self->pipeline_clear = true;
+        remove_old_bin(self);
+        gst_element_set_state(self->udp_src.get(), GST_STATE_PLAYING);
+        construct_pipeline(self);
+        gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
+    }
+    return true;
 }
 
 void create_nmos(GstNmosvideoreceiver* self)
@@ -339,50 +374,49 @@ void create_nmos(GstNmosvideoreceiver* self)
 
     // Add device and receiver configurations
     self->client->add_device(create_device_config(self->config).dump());
-    self->client->add_receiver(
-        self->config.device.id, create_receiver_config(self->config).dump(),
-        [self](const std::optional<std::string>& sdp, bool master_enabled) {
-            fmt::print("Receiver Activation Callback: SDP={}, Master Enabled={}\n",
-                       sdp.has_value() ? sdp.value() : "None", master_enabled);
-
-            if(master_enabled)
-            {
-                if(sdp)
-                {
-                    fmt::print("Received SDP: {}\n", sdp.value());
-                    auto sdp_settings = parse_sdp(sdp.value());
-                    if(sdp_settings.has_value() && sdp.value() != self->sdp_string)
-                    {
-                        self->sdp_settings = sdp_settings.value();
-                        self->sdp_string   = sdp.value();
-                        remove_old_bin(self);
-                        construct_pipeline(self);
-                        auto time = gst_element_get_base_time(GST_ELEMENT(self));
-                        gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
-                        gst_pad_set_offset(self->bin_pad, static_cast<long>(gst_clock_get_time(self->clock) - time));
-                    }
-                }
-                else if(!sdp && self->sdp_string != "")
-                {
-                    construct_pipeline(self);
-                    auto time = gst_element_get_base_time(GST_ELEMENT(self));
-                    gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
-                    gst_pad_set_offset(self->bin_pad, static_cast<long>(gst_clock_get_time(self->clock) - time));
-                }
-            }
-            else if(!master_enabled)
-            {
-                if(sdp)
-                {
-                    remove_old_bin(self);
-                }
-                else
-                {
-                    fmt::print("No SDP provided.\n");
-                }
-            }
-            fmt::print("Master enabled: {}\n", master_enabled);
-        });
+    self->client->add_receiver(self->config.device.id, create_receiver_config(self->config).dump(),
+                               [self](const std::optional<std::string>& sdp, bool master_enabled) {
+                                   fmt::print("Receiver Activation Callback: SDP={}, Master Enabled={}\n",
+                                              sdp.has_value() ? sdp.value() : "None", master_enabled);
+                                   if(master_enabled)
+                                   {
+                                       self->user_forced_stop = false;
+                                       if(sdp)
+                                       {
+                                           fmt::print("Received SDP: {}\n", sdp.value());
+                                           auto sdp_settings = parse_sdp(sdp.value());
+                                           if(sdp_settings.has_value() && sdp.value() != self->sdp_string)
+                                           {
+                                               self->sdp_settings = sdp_settings.value();
+                                               self->sdp_string   = sdp.value();
+                                               remove_old_bin(self);
+                                               construct_pipeline(self);
+                                               gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
+                                           }
+                                       }
+                                       else if(!sdp && self->sdp_string != "")
+                                       {
+                                           fmt::print("No new SDP provided, enabling master pipeline.\n");
+                                           remove_old_bin(self);
+                                           construct_pipeline(self);
+                                           gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
+                                       }
+                                   }
+                                   else
+                                   {
+                                       self->user_forced_stop = true;
+                                       if(sdp)
+                                       {
+                                           fmt::print("Disabling master: SDP received but master is not enabled.\n");
+                                           remove_old_bin(self);
+                                       }
+                                       else
+                                       {
+                                           fmt::print("Master not enabled and no SDP provided.\n");
+                                       }
+                                   }
+                                   fmt::print("Master enabled: {}\n", master_enabled);
+                               });
 
     GST_INFO_OBJECT(self, "NMOS client initialized successfully.");
 }
@@ -458,12 +492,27 @@ static void gst_nmosvideoreceiver_class_init(GstNmosvideoreceiverClass* klass)
 // Object initialization
 static void gst_nmosvideoreceiver_init(GstNmosvideoreceiver* self)
 {
+    self->last_buffer_time = g_get_monotonic_time();
+    self->pipeline_clear   = true;
+    self->user_forced_stop = false;
+    create_default_config_fields_video_receiver(&self->config);
+
+    g_timeout_add_seconds(1, (GSourceFunc)check_no_data_timeout, self);
     GstPadTemplate* src_tmpl = gst_static_pad_template_get(&src_template);
     GstPad* ghost_src        = gst_ghost_pad_new_no_target_from_template("src", src_tmpl);
     gst_object_unref(src_tmpl);
     gst_element_add_pad(GST_ELEMENT(self), ghost_src);
 
-    create_default_config_fields_video_receiver(&self->config);
+    auto maybe_udpsrc = GstElementHandle<GstElement>::create_element("udpsrc", nullptr);
+    if(std::holds_alternative<std::nullptr_t>(maybe_udpsrc))
+    {
+        GST_ERROR_OBJECT(self, "Failed to create udpsrc elements.");
+        return;
+    }
+    self->udp_src = std::move(std::get<GstElementHandle<GstElement>>(maybe_udpsrc));
+    GstPad* pad   = gst_element_get_static_pad(self->udp_src.get(), "src");
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, buffer_monitor_probe_cb, self, nullptr);
+    gst_object_unref(pad);
 }
 
 static gboolean plugin_init(GstPlugin* plugin)
@@ -471,7 +520,7 @@ static gboolean plugin_init(GstPlugin* plugin)
     return gst_element_register(plugin, "nmosvideoreceiver", GST_RANK_NONE, GST_TYPE_NMOSVIDEORECEIVER);
 }
 
-#define VERSION "0.1"
+#define VERSION "1.0"
 #define PACKAGE "gst-nmos-video-receiver-plugin"
 #define PACKAGE_NAME "AMWA NMOS Sender and Receiver Framework Plugins"
 #define GST_PACKAGE_ORIGIN "https://www.amwa.tv/"

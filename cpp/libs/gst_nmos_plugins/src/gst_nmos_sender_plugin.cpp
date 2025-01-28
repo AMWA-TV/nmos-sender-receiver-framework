@@ -21,10 +21,10 @@
  */
 
 #include "bisect/json.h"
-#include "utils.h"
 #include "ossrf/nmos/api/nmos_client.h"
-#include "../include/element_class.h"
-#include "../include/nmos_configuration.h"
+#include "utils.hpp"
+#include "gst_nmos_plugins/include/element_class.hpp"
+#include "gst_nmos_plugins/include/nmos_configuration.hpp"
 #include <gst/gst.h>
 #include <gst/gstpad.h>
 
@@ -45,7 +45,6 @@ typedef struct _GstNmossender
     GstElementHandle<_GstElement> audio_payloader_16;
     GstElementHandle<_GstElement> audio_payloader_24;
     GstElementHandle<_GstElement> udpsink;
-    GstPad* pad;
     gulong block_id;
     ossrf::nmos_client_uptr client;
     GstCaps* caps;
@@ -95,36 +94,25 @@ static void gst_nmossender_set_property(GObject* object, guint property_id, cons
     switch(static_cast<PropertyId>(property_id))
     {
     case PropertyId::NodeId: self->config.node.id = g_value_dup_string(value); break;
-
     case PropertyId::NodeConfigFileLocation:
         self->config.node.configuration_location = g_value_dup_string(value);
         break;
-
     case PropertyId::DeviceId: self->config.device.id = g_value_dup_string(value); break;
-
     case PropertyId::DeviceLabel: self->config.device.label = g_value_dup_string(value); break;
-
     case PropertyId::DeviceDescription: self->config.device.description = g_value_dup_string(value); break;
-
     case PropertyId::SenderId: self->config.id = g_value_dup_string(value); break;
-
     case PropertyId::SenderLabel: self->config.label = g_value_dup_string(value); break;
-
     case PropertyId::SenderDescription: self->config.description = g_value_dup_string(value); break;
-
     case PropertyId::SourceAddress: self->config.network.source_address = g_value_dup_string(value); break;
-
     case PropertyId::InterfaceName:
         self->config.network.interface_name = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink.get()), "bind_address", self->config.network.interface_name.c_str(),
                      nullptr);
         break;
-
     case PropertyId::DestinationAddress:
         self->config.network.destination_address = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink.get()), "host", self->config.network.destination_address.c_str(), nullptr);
         break;
-
     case PropertyId::DestinationPort:
         self->config.network.destination_port = atoi(g_value_get_string(value));
         g_object_set(G_OBJECT(self->udpsink.get()), "port", self->config.network.destination_port, nullptr);
@@ -163,7 +151,11 @@ static void gst_nmossender_get_property(GObject* object, guint property_id, GVal
 
 static GstPadProbeReturn block_pad_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
 {
-    return GST_PAD_PROBE_DROP;
+    if(GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_BUFFER)
+    {
+        return GST_PAD_PROBE_DROP;
+    }
+    return GST_PAD_PROBE_OK;
 }
 
 /* Event handler for the sink pad */
@@ -176,7 +168,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
     case GST_EVENT_CAPS: {
         GstCaps* caps = nullptr;
         gst_event_parse_caps(event, &caps);
-
         if(caps)
         {
             gchar* caps_str = gst_caps_to_string(caps);
@@ -269,7 +260,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
             {
                 GST_WARNING_OBJECT(self, "Unsupported media type: %s", media_type.c_str());
             }
-
             g_free(caps_str);
         }
         else
@@ -290,16 +280,15 @@ void create_nmos(GstNmossender* self)
     auto sender_activation_callback = [self](bool master_enabled, const nlohmann::json& transport_params) {
         fmt::print("nmos_sender_callback: master_enabled={}, transport_params={}\n", master_enabled,
                    transport_params.dump());
-
+        GstPad* pad = gst_element_get_static_pad(self->queue.get(), "sink");
         if(master_enabled)
         {
             if(transport_params.is_array() && !transport_params.empty())
             {
                 if(self->block_id == 0)
                 {
-                    self->block_id = gst_pad_add_probe(self->pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
-                                                       block_pad_probe_cb, NULL, NULL);
-                    gst_element_set_state(self->udpsink.get(), GST_STATE_PAUSED);
+                    self->block_id = gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb,
+                                                       nullptr, nullptr);
                 }
                 const auto& param = transport_params[0];
                 std::string dest_ip;
@@ -314,18 +303,16 @@ void create_nmos(GstNmossender* self)
                 }
                 g_object_set(G_OBJECT(self->udpsink.get()), "host", dest_ip.c_str(), "port", dest_port, nullptr);
             }
-            gst_element_set_state(self->udpsink.get(), GST_STATE_PLAYING);
             if(self->block_id != 0)
             {
-                gst_pad_remove_probe(self->pad, self->block_id);
+                gst_pad_remove_probe(pad, self->block_id);
                 self->block_id = 0;
             }
         }
         else
         {
             self->block_id =
-                gst_pad_add_probe(self->pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, NULL, NULL);
-            gst_element_set_state(self->udpsink.get(), GST_STATE_PAUSED);
+                gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, nullptr, nullptr);
         }
     };
 
@@ -502,8 +489,6 @@ static void gst_nmossender_init(GstNmossender* self)
         gst_object_unref(sink_ghost_pad);
         return;
     }
-
-    self->pad = sink_ghost_pad;
 }
 
 static gboolean plugin_init(GstPlugin* plugin)
@@ -511,7 +496,7 @@ static gboolean plugin_init(GstPlugin* plugin)
     return gst_element_register(plugin, "nmossender", GST_RANK_NONE, GST_TYPE_NMOSSENDER);
 }
 
-#define VERSION "0.1"
+#define VERSION "1.0"
 #define PACKAGE "gst-nmos-sender-plugin"
 #define PACKAGE_NAME "AMWA NMOS Sender and Receiver Framework Plugins"
 #define GST_PACKAGE_ORIGIN "https://www.amwa.tv/"

@@ -1,11 +1,11 @@
-#include "utils.h"
+#include "utils.hpp"
 #include "ossrf/nmos/api/nmos_client.h"
 #include "bisect/nmoscpp/configuration.h"
 #include "bisect/expected/macros.h"
 #include "bisect/expected.h"
 #include "bisect/json.h"
-#include "gst_nmos_plugins/include/element_class.h"
-#include "gst_nmos_plugins/include/nmos_configuration.h"
+#include "gst_nmos_plugins/include/element_class.hpp"
+#include "gst_nmos_plugins/include/nmos_configuration.hpp"
 #include <memory>
 
 using namespace bisect;

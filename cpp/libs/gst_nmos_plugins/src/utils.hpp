@@ -1,11 +1,11 @@
 #pragma once
+#include "gst_nmos_plugins/include/element_class.hpp"
+#include "gst_nmos_plugins/include/nmos_configuration.hpp"
 #include <string>
 #include <glib.h>
 #include <variant>
 #include <gst/gst.h>
 #include <nlohmann/json.hpp>
-#include "../include/element_class.h"
-#include "../include/nmos_configuration.h"
 
 void create_default_config_fields_sender(config_fields_t* config);
 void create_default_config_fields_video_receiver(config_fields_t* config);
