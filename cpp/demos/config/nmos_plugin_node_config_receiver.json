@@ -5,7 +5,7 @@
             "label": "BISECT OSSRF Node Receiver",
             "description": "BISECT OSSRF node receiver",
             "host_addresses": [
-                "192.168.1.36"
+                "192.168.1.1"
             ],
             "interfaces": [
                 {
@@ -24,16 +24,13 @@
                     "locked": true
                 }
             ],
-            "registry_address": "192.168.1.36",
+            "registry_address": "192.168.1.1",
             "registry_version": "v1.3",
             "registration_port": 8010,
-            "system_address": "192.168.1.36",
+            "system_address": "192.168.1.1",
             "system_version": "v1.0",
             "system_port": 8010,
             "http_port": 5114
         }
-    },
-    "device": {},
-    "receivers": [],
-    "senders": []
+    }
 }

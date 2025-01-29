@@ -128,5 +128,8 @@ Open `cpp/demos/ossrf-nmos-api/config/nmos_config.json` and adjust the following
 
     ./scripts/build-inside-container.sh
 
-## Notes
-At the moment, the gstreamer plugins with NMOS (nmossender and nmosreceiver)  aren't 100% functional, being more of a proof of concept that will be refined in the near future.
+## GStreamer Plugins
+
+We have also developed GStreamer plugins (nmossender, nmosvideoreceiver, and nmosaudioreceiver) that integrate NMOS registration and control with the sending and receiving of raw ST2110 audio/video streams.
+
+For detailed instructions on building, installing, and using these plugins (including examples of gst-launch-1.0 pipelines), please see the [Plugins Guide](/cpp/libs/gst_nmos_plugins/).
