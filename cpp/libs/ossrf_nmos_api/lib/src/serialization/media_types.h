@@ -20,4 +20,5 @@ namespace ossrf::media_types
 {
     constexpr std::string_view VIDEO_RAW = "video/raw";
     constexpr std::string_view AUDIO_L24 = "audio/L24";
+    constexpr std::string_view AUDIO_L16 = "audio/L16";
 } // namespace ossrf::media_types

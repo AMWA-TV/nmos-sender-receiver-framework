@@ -44,7 +44,20 @@ namespace
         else if(media_type == "audio/L24")
         {
             receiver.media_types = {nmos::media_types::audio_L24};
-            receiver.format      = nmos::formats::audio;
+            if(c[1] != "")
+            {
+                receiver.media_types.push_back(nmos::media_types::audio_L(16));
+            }
+            receiver.format = nmos::formats::audio;
+        }
+        else if(media_type == "audio/L16")
+        {
+            receiver.media_types = {nmos::media_types::audio_L(16)};
+            if(c[1] != "")
+            {
+                receiver.media_types.push_back(nmos::media_types::audio_L24);
+            }
+            receiver.format = nmos::formats::audio;
         }
         else
         {

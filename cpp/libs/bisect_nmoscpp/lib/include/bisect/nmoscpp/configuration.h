@@ -107,6 +107,7 @@ namespace bisect::nmoscpp
         nmos::rational exact_framerate;
         std::string chroma_sub_sampling;
         nmos::interlace_mode structure;
+        int depth = 0;
     };
 
     struct audio_sender_info_t

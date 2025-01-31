@@ -1,0 +1,39 @@
+{
+    "node": {
+        "id": "8968180c-0418-4422-bea1-f0c642389637",
+        "configuration": {
+            "label": "BISECT OSSRF Node Receiver",
+            "description": "BISECT OSSRF node receiver",
+            "host_addresses": [
+                "192.168.1.36"
+            ],
+            "interfaces": [
+                {
+                    "chassis_id": "c9-94-02-f7-3e-eb",
+                    "name": "wlp1s0",
+                    "port_id": "00-e0-4c-68-01-8d"
+                }
+            ],
+            "clocks": [
+                {
+                    "name": "clk0",
+                    "ref_type": "ptp",
+                    "traceable": false,
+                    "version": "IEEE1588-2008",
+                    "gmid": "00-20-fc-ff-fe-35-9c-26",
+                    "locked": true
+                }
+            ],
+            "registry_address": "192.168.1.36",
+            "registry_version": "v1.3",
+            "registration_port": 8010,
+            "system_address": "192.168.1.36",
+            "system_version": "v1.0",
+            "system_port": 8010,
+            "http_port": 5114
+        }
+    },
+    "device": {},
+    "receivers": [],
+    "senders": []
+}
