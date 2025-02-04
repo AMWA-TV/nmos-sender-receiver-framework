@@ -374,50 +374,60 @@ void create_nmos(GstNmosvideoreceiver* self)
 
     // Add device and receiver configurations
     self->client->add_device(create_device_config(self->config).dump());
-    self->client->add_receiver(self->config.device.id, create_receiver_config(self->config).dump(),
-                               [self](const std::optional<std::string>& sdp, bool master_enabled) {
-                                   fmt::print("Receiver Activation Callback: SDP={}, Master Enabled={}\n",
-                                              sdp.has_value() ? sdp.value() : "None", master_enabled);
-                                   if(master_enabled)
-                                   {
-                                       self->user_forced_stop = false;
-                                       if(sdp)
-                                       {
-                                           fmt::print("Received SDP: {}\n", sdp.value());
-                                           auto sdp_settings = parse_sdp(sdp.value());
-                                           if(sdp_settings.has_value() && sdp.value() != self->sdp_string)
-                                           {
-                                               self->sdp_settings = sdp_settings.value();
-                                               self->sdp_string   = sdp.value();
-                                               remove_old_bin(self);
-                                               construct_pipeline(self);
-                                               gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
-                                           }
-                                       }
-                                       else if(!sdp && self->sdp_string != "")
-                                       {
-                                           fmt::print("No new SDP provided, enabling master pipeline.\n");
-                                           remove_old_bin(self);
-                                           construct_pipeline(self);
-                                           gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
-                                       }
-                                   }
-                                   else
-                                   {
-                                       self->user_forced_stop = true;
-                                       if(sdp)
-                                       {
-                                           fmt::print("Disabling master: SDP received but master is not enabled.\n");
-                                           remove_old_bin(self);
-                                       }
-                                       else
-                                       {
-                                           fmt::print("Master not enabled and no SDP provided.\n");
-                                       }
-                                   }
-                                   fmt::print("Master enabled: {}\n", master_enabled);
-                               });
-
+    self->client->add_receiver(
+        self->config.device.id, create_receiver_config(self->config).dump(),
+        [self](const std::optional<std::string>& sdp, bool master_enabled, const nlohmann::json& transport_params) {
+            fmt::print("Receiver Activation Callback: SDP={}, Master Enabled={}\n",
+                       sdp.has_value() ? sdp.value() : "None", master_enabled);
+            nlohmann::json_abi_v3_11_3::basic_json<>::value_type param;
+            bool rtp_enabled = false;
+            if(transport_params.is_array() && !transport_params.empty())
+            {
+                param = transport_params[0];
+                if(param.contains("rtp_enabled"))
+                {
+                    rtp_enabled = param["rtp_enabled"].get<bool>();
+                }
+            }
+            if(master_enabled && rtp_enabled)
+            {
+                self->user_forced_stop = false;
+                if(sdp)
+                {
+                    fmt::print("Received SDP: {}\n", sdp.value());
+                    auto sdp_settings = parse_sdp(sdp.value());
+                    if(sdp_settings.has_value() && sdp.value() != self->sdp_string)
+                    {
+                        self->sdp_settings = sdp_settings.value();
+                        self->sdp_string   = sdp.value();
+                        remove_old_bin(self);
+                        construct_pipeline(self);
+                        gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
+                    }
+                }
+                else if(!sdp && self->sdp_string != "")
+                {
+                    fmt::print("No new SDP provided, enabling master pipeline.\n");
+                    remove_old_bin(self);
+                    construct_pipeline(self);
+                    gst_element_set_state(GST_ELEMENT(self), GST_STATE_PLAYING);
+                }
+            }
+            else
+            {
+                self->user_forced_stop = true;
+                if(sdp)
+                {
+                    fmt::print("Disabling master: SDP received but master is not enabled.\n");
+                    remove_old_bin(self);
+                }
+                else
+                {
+                    fmt::print("Master not enabled and no SDP provided.\n");
+                }
+            }
+            fmt::print("Master enabled: {}\n", master_enabled);
+        });
     GST_INFO_OBJECT(self, "NMOS client initialized successfully.");
 }
 

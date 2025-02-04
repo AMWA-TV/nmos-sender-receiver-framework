@@ -281,28 +281,34 @@ void create_nmos(GstNmossender* self)
         fmt::print("nmos_sender_callback: master_enabled={}, transport_params={}\n", master_enabled,
                    transport_params.dump());
         GstPad* pad = gst_element_get_static_pad(self->queue.get(), "sink");
-        if(master_enabled)
+        nlohmann::json_abi_v3_11_3::basic_json<>::value_type param;
+        bool rtp_enabled = false;
+        if(transport_params.is_array() && !transport_params.empty())
         {
-            if(transport_params.is_array() && !transport_params.empty())
+            param = transport_params[0];
+            if(param.contains("rtp_enabled"))
             {
-                if(self->block_id == 0)
-                {
-                    self->block_id = gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb,
-                                                       nullptr, nullptr);
-                }
-                const auto& param = transport_params[0];
-                std::string dest_ip;
-                if(param.contains("destination_ip"))
-                {
-                    dest_ip = param["destination_ip"].get<std::string>();
-                }
-                int dest_port = 9999;
-                if(param.contains("destination_port"))
-                {
-                    dest_port = param["destination_port"].get<int>();
-                }
-                g_object_set(G_OBJECT(self->udpsink.get()), "host", dest_ip.c_str(), "port", dest_port, nullptr);
+                rtp_enabled = param["rtp_enabled"].get<bool>();
             }
+        }
+        if(master_enabled && rtp_enabled)
+        {
+            if(self->block_id == 0)
+            {
+                self->block_id =
+                    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, nullptr, nullptr);
+            }
+            std::string dest_ip;
+            if(param.contains("destination_ip"))
+            {
+                dest_ip = param["destination_ip"].get<std::string>();
+            }
+            int dest_port = 9999;
+            if(param.contains("destination_port"))
+            {
+                dest_port = param["destination_port"].get<int>();
+            }
+            g_object_set(G_OBJECT(self->udpsink.get()), "host", dest_ip.c_str(), "port", dest_port, nullptr);
             if(self->block_id != 0)
             {
                 gst_pad_remove_probe(pad, self->block_id);
@@ -315,7 +321,6 @@ void create_nmos(GstNmossender* self)
                 gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, nullptr, nullptr);
         }
     };
-
     const auto node_config_json = create_node_config(self->config);
     if(node_config_json == nullptr)
     {

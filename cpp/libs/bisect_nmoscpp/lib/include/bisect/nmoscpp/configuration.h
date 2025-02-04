@@ -157,5 +157,5 @@ namespace bisect::nmoscpp
         std::function<void(bool master_enable, const nlohmann::json& transport_params)>;
 
     using receiver_activation_callback_t =
-        std::function<void(const std::optional<std::string>& sdp, const bool master_enable)>;
+        std::function<void(const std::optional<std::string>& sdp, const bool master_enable, const nlohmann::json& transport_params)>;
 } // namespace bisect::nmoscpp
