@@ -107,6 +107,7 @@ namespace bisect::nmoscpp
         nmos::rational exact_framerate;
         std::string chroma_sub_sampling;
         nmos::interlace_mode structure;
+        int depth = 0;
     };
 
     struct audio_sender_info_t
@@ -156,5 +157,5 @@ namespace bisect::nmoscpp
         std::function<void(bool master_enable, const nlohmann::json& transport_params)>;
 
     using receiver_activation_callback_t =
-        std::function<void(const std::optional<std::string>& sdp, const bool master_enable)>;
+        std::function<void(const std::optional<std::string>& sdp, const bool master_enable, const nlohmann::json& transport_params)>;
 } // namespace bisect::nmoscpp

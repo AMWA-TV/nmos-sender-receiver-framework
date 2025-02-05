@@ -65,6 +65,16 @@ namespace
         return info;
     }
 
+    expected<audio_sender_info_t> audio_l16_sender_info_from_json(const json& media)
+    {
+        audio_sender_info_t info;
+        BST_CHECK_ASSIGN(info.number_of_channels, find<int>(media, "number_of_channels"));
+        BST_CHECK_ASSIGN(info.sampling_rate, find<int>(media, "sampling_rate"));
+        BST_CHECK_ASSIGN(info.packet_time, find<float>(media, "packet_time"));
+        info.bits_per_sample = 16;
+        return info;
+    }
+
     std::string synthetize_id(std::string sender_id, int delta)
     {
         const auto last_digit_value = std::stoi(sender_id.substr(sender_id.size() - 1), 0, 16);
@@ -121,6 +131,13 @@ expected<nmos_sender_t> ossrf::nmos_sender_from_json(const json& config)
     else if(sender.media_type == media_types::AUDIO_L24)
     {
         BST_ASSIGN(info, audio_l24_sender_info_from_json(media));
+        sender.media      = info;
+        sender.format     = nmos::formats::audio;
+        sender.grain_rate = info.sampling_rate;
+    }
+    else if(sender.media_type == media_types::AUDIO_L16)
+    {
+        BST_ASSIGN(info, audio_l16_sender_info_from_json(media));
         sender.media      = info;
         sender.format     = nmos::formats::audio;
         sender.grain_rate = info.sampling_rate;
