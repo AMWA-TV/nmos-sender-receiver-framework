@@ -57,10 +57,7 @@ template <typename T = GstElement> class GstElementHandle
     }
 
     /// Destruction of this object will no longer unref the owned element.
-    void forget(T* new_ptr = nullptr)
-    {
-        handle_ = new_ptr;
-    }
+    void forget(T* new_ptr = nullptr) { handle_ = new_ptr; }
 
     T* get() const { return handle_; }
 

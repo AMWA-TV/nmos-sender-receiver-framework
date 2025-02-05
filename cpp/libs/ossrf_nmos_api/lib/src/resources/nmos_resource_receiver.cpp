@@ -112,7 +112,7 @@ maybe_ok nmos_resource_receiver_t::handle_activation(bool master_enable, json& t
         fmt::print("receiver {}::handle_activation - callback with disabled\n", config_.id);
     }
 
-    activation_callback_(sdp_, master_enable);
+    activation_callback_(sdp_, master_enable, transport_params);
 
     master_enable_ = master_enable;
 

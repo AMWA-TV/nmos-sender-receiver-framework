@@ -61,43 +61,45 @@ namespace
             {
                 if(i == 1)
                 {
-                    auto receiver_activation_callback = [r = (*it).dump(), &gst_receiver_uptr](
-                                                            const std::optional<std::string>& sdp, bool master_enable) {
-                        if(sdp.has_value())
-                        {
-                            fmt::print("nmos_receiver_callback: {} {}\n", master_enable, sdp.value());
-                            auto plugin = ossrf::gst::plugins::create_gst_receiver_plugin(r, sdp.value());
-                            if(plugin.has_value())
+                    auto receiver_activation_callback =
+                        [r = (*it).dump(), &gst_receiver_uptr](const std::optional<std::string>& sdp,
+                                                               bool master_enable, const nlohmann::json&) {
+                            if(sdp.has_value())
                             {
-                                gst_receiver_uptr.reset(plugin.value().release());
+                                fmt::print("nmos_receiver_callback: {} {}\n", master_enable, sdp.value());
+                                auto plugin = ossrf::gst::plugins::create_gst_receiver_plugin(r, sdp.value());
+                                if(plugin.has_value())
+                                {
+                                    gst_receiver_uptr.reset(plugin.value().release());
+                                    return;
+                                }
+                                fmt::print("failed creating receiver\n");
                                 return;
                             }
-                            fmt::print("failed creating receiver\n");
-                            return;
-                        }
-                        fmt::print("nmos_receiver_callback: {} no sdp\n", master_enable);
-                    };
+                            fmt::print("nmos_receiver_callback: {} no sdp\n", master_enable);
+                        };
                     BST_CHECK(nmos_client->add_receiver(device_id, (*it).dump(), receiver_activation_callback));
                     receiver_info_config = (*it).dump();
                 }
                 else if(i == 2)
                 {
-                    auto receiver_activation_callback = [r = (*it).dump(), &gst_receiver_uptr_2](
-                                                            const std::optional<std::string>& sdp, bool master_enable) {
-                        if(sdp.has_value())
-                        {
-                            fmt::print("nmos_receiver_callback: {} {}\n", master_enable, sdp.value());
-                            auto plugin = ossrf::gst::plugins::create_gst_receiver_plugin(r, sdp.value());
-                            if(plugin.has_value())
+                    auto receiver_activation_callback =
+                        [r = (*it).dump(), &gst_receiver_uptr_2](const std::optional<std::string>& sdp,
+                                                                 bool master_enable, const nlohmann::json&) {
+                            if(sdp.has_value())
                             {
-                                gst_receiver_uptr_2.reset(plugin.value().release());
+                                fmt::print("nmos_receiver_callback: {} {}\n", master_enable, sdp.value());
+                                auto plugin = ossrf::gst::plugins::create_gst_receiver_plugin(r, sdp.value());
+                                if(plugin.has_value())
+                                {
+                                    gst_receiver_uptr_2.reset(plugin.value().release());
+                                    return;
+                                }
+                                fmt::print("failed creating receiver\n");
                                 return;
                             }
-                            fmt::print("failed creating receiver\n");
-                            return;
-                        }
-                        fmt::print("nmos_receiver_callback: {} no sdp\n", master_enable);
-                    };
+                            fmt::print("nmos_receiver_callback: {} no sdp\n", master_enable);
+                        };
                     BST_CHECK(nmos_client->add_receiver(device_id, (*it).dump(), receiver_activation_callback));
                 }
                 i++;

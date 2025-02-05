@@ -21,10 +21,10 @@
  */
 
 #include "bisect/json.h"
-#include "utils.h"
 #include "ossrf/nmos/api/nmos_client.h"
-#include "../include/element_class.h"
-#include "../include/nmos_configuration.h"
+#include "utils.hpp"
+#include "gst_nmos_plugins/include/element_class.hpp"
+#include "gst_nmos_plugins/include/nmos_configuration.hpp"
 #include <gst/gst.h>
 #include <gst/gstpad.h>
 
@@ -39,14 +39,17 @@ GST_DEBUG_CATEGORY_STATIC(gst_nmossender_debug_category);
 typedef struct _GstNmossender
 {
     GstBin parent;
+    GstElementHandle<_GstElement> bin;
     GstElementHandle<_GstElement> queue;
     GstElementHandle<_GstElement> video_payloader;
     GstElementHandle<_GstElement> audio_payloader_16;
     GstElementHandle<_GstElement> audio_payloader_24;
     GstElementHandle<_GstElement> udpsink;
+    gulong block_id;
     ossrf::nmos_client_uptr client;
     GstCaps* caps;
     config_fields_t config;
+    bool nmos_active;
 } GstNmossender;
 
 typedef struct _GstNmossenderClass
@@ -91,36 +94,25 @@ static void gst_nmossender_set_property(GObject* object, guint property_id, cons
     switch(static_cast<PropertyId>(property_id))
     {
     case PropertyId::NodeId: self->config.node.id = g_value_dup_string(value); break;
-
     case PropertyId::NodeConfigFileLocation:
         self->config.node.configuration_location = g_value_dup_string(value);
         break;
-
     case PropertyId::DeviceId: self->config.device.id = g_value_dup_string(value); break;
-
     case PropertyId::DeviceLabel: self->config.device.label = g_value_dup_string(value); break;
-
     case PropertyId::DeviceDescription: self->config.device.description = g_value_dup_string(value); break;
-
     case PropertyId::SenderId: self->config.id = g_value_dup_string(value); break;
-
     case PropertyId::SenderLabel: self->config.label = g_value_dup_string(value); break;
-
     case PropertyId::SenderDescription: self->config.description = g_value_dup_string(value); break;
-
     case PropertyId::SourceAddress: self->config.network.source_address = g_value_dup_string(value); break;
-
     case PropertyId::InterfaceName:
         self->config.network.interface_name = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink.get()), "bind_address", self->config.network.interface_name.c_str(),
                      nullptr);
         break;
-
     case PropertyId::DestinationAddress:
         self->config.network.destination_address = g_value_dup_string(value);
         g_object_set(G_OBJECT(self->udpsink.get()), "host", self->config.network.destination_address.c_str(), nullptr);
         break;
-
     case PropertyId::DestinationPort:
         self->config.network.destination_port = atoi(g_value_get_string(value));
         g_object_set(G_OBJECT(self->udpsink.get()), "port", self->config.network.destination_port, nullptr);
@@ -157,6 +149,15 @@ static void gst_nmossender_get_property(GObject* object, guint property_id, GVal
     }
 }
 
+static GstPadProbeReturn block_pad_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
+{
+    if(GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_BUFFER)
+    {
+        return GST_PAD_PROBE_DROP;
+    }
+    return GST_PAD_PROBE_OK;
+}
+
 /* Event handler for the sink pad */
 static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEvent* event)
 {
@@ -167,7 +168,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
     case GST_EVENT_CAPS: {
         GstCaps* caps = nullptr;
         gst_event_parse_caps(event, &caps);
-
         if(caps)
         {
             gchar* caps_str = gst_caps_to_string(caps);
@@ -260,7 +260,6 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
             {
                 GST_WARNING_OBJECT(self, "Unsupported media type: %s", media_type.c_str());
             }
-
             g_free(caps_str);
         }
         else
@@ -276,57 +275,104 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
     return gst_pad_event_default(pad, parent, event);
 }
 
+void create_nmos(GstNmossender* self)
+{
+    auto sender_activation_callback = [self](bool master_enabled, const nlohmann::json& transport_params) {
+        fmt::print("nmos_sender_callback: master_enabled={}, transport_params={}\n", master_enabled,
+                   transport_params.dump());
+        GstPad* pad = gst_element_get_static_pad(self->queue.get(), "sink");
+        nlohmann::json_abi_v3_11_3::basic_json<>::value_type param;
+        bool rtp_enabled = false;
+        if(transport_params.is_array() && !transport_params.empty())
+        {
+            param = transport_params[0];
+            if(param.contains("rtp_enabled"))
+            {
+                rtp_enabled = param["rtp_enabled"].get<bool>();
+            }
+        }
+        if(master_enabled && rtp_enabled)
+        {
+            if(self->block_id == 0)
+            {
+                self->block_id =
+                    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, nullptr, nullptr);
+            }
+            std::string dest_ip;
+            if(param.contains("destination_ip"))
+            {
+                dest_ip = param["destination_ip"].get<std::string>();
+            }
+            int dest_port = 9999;
+            if(param.contains("destination_port"))
+            {
+                dest_port = param["destination_port"].get<int>();
+            }
+            g_object_set(G_OBJECT(self->udpsink.get()), "host", dest_ip.c_str(), "port", dest_port, nullptr);
+            if(self->block_id != 0)
+            {
+                gst_pad_remove_probe(pad, self->block_id);
+                self->block_id = 0;
+            }
+        }
+        else
+        {
+            self->block_id =
+                gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, block_pad_probe_cb, nullptr, nullptr);
+        }
+    };
+    const auto node_config_json = create_node_config(self->config);
+    if(node_config_json == nullptr)
+    {
+        GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. No valid node JSON location given.");
+        return;
+    }
+    const auto device_config_json                       = create_device_config(self->config);
+    nlohmann::json_abi_v3_11_3::json sender_config_json = nullptr;
+
+    if(self->config.is_audio)
+    {
+        sender_config_json = create_audio_sender_config(self->config);
+    }
+    else
+    {
+        sender_config_json = create_video_sender_config(self->config);
+    }
+
+    auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
+    if(result.has_value() == false)
+    {
+        GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. Node ID: %s", self->config.node.id.c_str());
+        return;
+    }
+
+    self->client = std::move(result.value());
+    if(!self->client->add_device(device_config_json.dump()))
+    {
+        GST_ERROR_OBJECT(self, "Failed to add device to NMOS client");
+        return;
+    }
+
+    if(!self->client->add_sender(self->config.device.id, sender_config_json.dump(), sender_activation_callback))
+    {
+        GST_ERROR_OBJECT(self, "Failed to add sender to NMOS client");
+        return;
+    }
+}
+
 /* State Change so it doesn't boot NMOS without pipeline being set to playing */
 static GstStateChangeReturn gst_nmossender_change_state(GstElement* element, GstStateChange transition)
 {
     GstStateChangeReturn ret;
     GstNmossender* self = GST_NMOSSENDER(element);
 
-    auto sender_activation_callback = [](bool master_enabled, const nlohmann::json& transport_params) {
-        fmt::print("nmos_sender_callback: master_enabled={}, transport_params={}\n", master_enabled,
-                   transport_params.dump());
-    };
-
     switch(transition)
     {
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING: {
-
-        const auto node_config_json = create_node_config(self->config);
-        if(node_config_json == nullptr)
+        if(self->nmos_active != true)
         {
-            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. No valid node JSON location given.");
-            return GST_STATE_CHANGE_FAILURE;
-        }
-        const auto device_config_json                       = create_device_config(self->config);
-        nlohmann::json_abi_v3_11_3::json sender_config_json = nullptr;
-
-        if(self->config.is_audio)
-        {
-            sender_config_json = create_audio_sender_config(self->config);
-        }
-        else
-        {
-            sender_config_json = create_video_sender_config(self->config);
-        }
-
-        auto result = ossrf::nmos_client_t::create(self->config.node.id, node_config_json.dump());
-        if(result.has_value() == false)
-        {
-            GST_ERROR_OBJECT(self, "Failed to initialize NMOS client. Node ID: %s", self->config.node.id.c_str());
-            return GST_STATE_CHANGE_FAILURE;
-        }
-
-        self->client = std::move(result.value());
-        if(!self->client->add_device(device_config_json.dump()))
-        {
-            GST_ERROR_OBJECT(self, "Failed to add device to NMOS client");
-            return GST_STATE_CHANGE_FAILURE;
-        }
-
-        if(!self->client->add_sender(self->config.device.id, sender_config_json.dump(), sender_activation_callback))
-        {
-            GST_ERROR_OBJECT(self, "Failed to add sender to NMOS client");
-            return GST_STATE_CHANGE_FAILURE;
+            create_nmos(self);
+            self->nmos_active = true;
         }
     }
     break;
@@ -392,13 +438,16 @@ static void gst_nmossender_class_init(GstNmossenderClass* klass)
 /* Object initialization */
 static void gst_nmossender_init(GstNmossender* self)
 {
+    auto maybeBin = GstElementHandle<GstElement>::create_bin("dynamic-bin");
+
     auto maybeQueue      = GstElementHandle<GstElement>::create_element("queue", nullptr);
     auto maybeVideoPay   = GstElementHandle<GstElement>::create_element("rtpvrawpay", nullptr);
     auto maybeAudioPay16 = GstElementHandle<GstElement>::create_element("rtpL16pay", nullptr);
     auto maybeAudioPay24 = GstElementHandle<GstElement>::create_element("rtpL24pay", nullptr);
     auto maybeUdpSink    = GstElementHandle<GstElement>::create_element("udpsink", nullptr);
 
-    if(std::holds_alternative<std::nullptr_t>(maybeQueue) || std::holds_alternative<std::nullptr_t>(maybeVideoPay) ||
+    if(std::holds_alternative<std::nullptr_t>(maybeBin) || std::holds_alternative<std::nullptr_t>(maybeQueue) ||
+       std::holds_alternative<std::nullptr_t>(maybeVideoPay) ||
        std::holds_alternative<std::nullptr_t>(maybeAudioPay16) ||
        std::holds_alternative<std::nullptr_t>(maybeAudioPay24) || std::holds_alternative<std::nullptr_t>(maybeUdpSink))
     {
@@ -414,7 +463,8 @@ static void gst_nmossender_init(GstNmossender* self)
 
     // set properties
     g_object_set(G_OBJECT(self->queue.get()), "max-size-buffers", 1, nullptr);
-    g_object_set(G_OBJECT(self->udpsink.get()), "host", "127.0.0.1", "port", 9999, nullptr);
+    g_object_set(G_OBJECT(self->udpsink.get()), "host", "127.0.0.1", "port", 9999, "is-live", true, "async", false,
+                 nullptr);
     create_default_config_fields_sender(&self->config);
 
     gst_bin_add_many(GST_BIN(self), self->queue.get(), self->video_payloader.get(), self->audio_payloader_24.get(),
@@ -451,7 +501,7 @@ static gboolean plugin_init(GstPlugin* plugin)
     return gst_element_register(plugin, "nmossender", GST_RANK_NONE, GST_TYPE_NMOSSENDER);
 }
 
-#define VERSION "0.1"
+#define VERSION "1.0"
 #define PACKAGE "gst-nmos-sender-plugin"
 #define PACKAGE_NAME "AMWA NMOS Sender and Receiver Framework Plugins"
 #define GST_PACKAGE_ORIGIN "https://www.amwa.tv/"
