@@ -254,6 +254,12 @@ static gboolean gst_nmossender_sink_event(GstPad* pad, GstObject* parent, GstEve
                     {
                         self->config.video_media_fields.sampling = translate_video_format(format);
                     }
+                    gint num, den;
+                    if(gst_structure_get_fraction(structure, "framerate", &num, &den))
+                    {
+                        self->config.video_media_fields.frame_rate_num = num;
+                        self->config.video_media_fields.frame_rate_den = den;
+                    }
                 }
             }
             else
