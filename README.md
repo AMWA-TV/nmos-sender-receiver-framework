@@ -1,8 +1,4 @@
-# ossrf
-
-## Overview
-
-Developing OSSRF for AWMA by Bisect.
+# AMWA Open Source Sender Receiver Framework
 
 ## Platforms
 
