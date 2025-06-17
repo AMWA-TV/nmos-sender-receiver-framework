@@ -1,0 +1,36 @@
+{
+    "name": "OSSRF - Docker in Docker",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "args": {}
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "version": "latest",
+            "enableNonRootDocker": "true",
+            "moby": "true"
+        },
+        "ghcr.io/meaningful-ooo/devcontainer-features/fish:1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": []
+        }
+    },
+    "mounts": [
+        // "source=/usr/share/egl,target=/usr/share/egl,type=bind,consistency=cached",
+        // "source=/usr/share/nvidia,target=/usr/share/nvidia,type=bind,consistency=cached",
+        // "source=/usr/share/vulkan,target=/usr/share/vulkan,type=bind,consistency=cached",
+        // "source=/run/user/1000/pulse/native,target=/run/user/1000/pulse/native,type=bind,consistency=cached",
+        // "source=${localEnv:HOME}/.config/pulse,target=/home/vscode/.config/pulse,type=bind,consistency=cached",
+        // "source=/mnt/media-vault,target=/mnt/media-vault,type=bind,consistency=cached"
+    ],
+    "runArgs": [
+        "--network=host",
+        // "--gpus=all",
+        "--privileged"
+    ],
+    "containerEnv": {
+        "PULSE_SERVER": "/run/user/1000/pulse/native"
+    }
+}
